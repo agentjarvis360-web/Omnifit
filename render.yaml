@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: omnifit-scab
+    runtime: python
+    plan: free
+    rootDir: server
+    buildCommand: pip install -r requirements.txt
+    startCommand: python3 app.py
+    envVars:
+      - key: XAI_API_KEY
+        sync: false

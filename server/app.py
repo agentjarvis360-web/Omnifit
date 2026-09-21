@@ -174,12 +174,19 @@ class Handler(BaseHTTPRequestHandler):
         path = self.path.split("?", 1)[0]
         if path in ("/", "/health", "/api/status"):
             key = api_key()
+            hints = sorted(
+                k
+                for k in os.environ
+                if "XAI" in k.upper() or k.upper() in ("API_KEY", "GROK_API_KEY", "XAI_KEY")
+            )
             self.send_json(
                 200,
                 {
                     "ok": True,
                     "scan": bool(key),
                     "key_len": len(key),
+                    "env_hints": hints,
+                    "env_count": len(os.environ),
                     "model": MODEL,
                     "service": "omnifit-meal-scan",
                 },
