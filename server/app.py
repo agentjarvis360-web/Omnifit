@@ -80,6 +80,19 @@ def api_key():
             val = (val or "").strip()
             if val:
                 return val
+    # Render / platform secret files (filename = XAI_API_KEY)
+    for path in (
+        Path("/etc/secrets/XAI_API_KEY"),
+        Path("/etc/secrets/xai_api_key"),
+        ROOT / "XAI_API_KEY",
+    ):
+        try:
+            if path.is_file():
+                val = path.read_text(encoding="utf-8").strip()
+                if val:
+                    return val
+        except Exception:
+            pass
     return ""
 
 
@@ -179,6 +192,11 @@ class Handler(BaseHTTPRequestHandler):
                 for k in os.environ
                 if "XAI" in k.upper() or k.upper() in ("API_KEY", "GROK_API_KEY", "XAI_KEY")
             )
+            secret_files = [
+                str(path)
+                for path in (Path("/etc/secrets/XAI_API_KEY"), Path("/etc/secrets/xai_api_key"))
+                if path.is_file()
+            ]
             self.send_json(
                 200,
                 {
@@ -186,6 +204,7 @@ class Handler(BaseHTTPRequestHandler):
                     "scan": bool(key),
                     "key_len": len(key),
                     "env_hints": hints,
+                    "secret_files": secret_files,
                     "env_count": len(os.environ),
                     "model": MODEL,
                     "service": "omnifit-meal-scan",
