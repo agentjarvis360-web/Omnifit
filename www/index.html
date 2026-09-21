@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, interactive-widget=overlays-content" />
+  <meta name="theme-color" content="#121212" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="OmniFit" />
+  <title>OmniFit</title>
+  <link rel="icon" href="assets/icon-192.png" type="image/png" />
+  <link rel="apple-touch-icon" href="assets/icon-180.png" sizes="180x180" />
+  <link rel="apple-touch-icon" href="assets/icon-192.png" sizes="192x192" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="stylesheet" href="styles.css?v=24" />
+  <style>
+    @supports (-webkit-touch-callout: none) {
+      html, body {
+        height: -webkit-fill-available;
+        min-height: 100lvh;
+        background: #121212;
+      }
+      .phone {
+        position: fixed;
+        top: 0; right: 0; bottom: 0; left: 0;
+        width: 100%;
+        height: -webkit-fill-available;
+        min-height: 100lvh;
+      }
+      .tabbar {
+        position: fixed;
+        left: 0; right: 0; bottom: 0;
+        width: 100%;
+        padding-bottom: env(safe-area-inset-bottom, 34px);
+        background: #161616;
+      }
+    }
+  </style>
+</head>
+<body>
+  <input id="meal-camera" class="sr-only" type="file" accept="image/*" capture="environment" />
+  <input id="meal-library" class="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/*" />
+  <input id="body-camera" class="sr-only" type="file" accept="image/*" capture="environment" />
+  <input id="body-library" class="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/*" />
+  <div class="phone">
+    <div id="app" class="app boot"></div>
+    <div id="splash" class="splash play" role="status" aria-label="OmniFit">
+      <div class="splash-stage">
+        <img class="splash-mark" src="assets/omnifit-e-icon-master.png" alt="" />
+      </div>
+      <div class="wordmark splash-word" aria-label="OmniFit">
+        <span class="omni">Omni</span><span class="fit">Fit</span>
+      </div>
+      <p class="splash-tag">Train. Fuel. Repeat.</p>
+    </div>
+  </div>
+  <script src="config.js"></script>
+  <script src="data.js?v=22"></script>
+  <script src="app.js?v=22"></script>
+</body>
+</html>

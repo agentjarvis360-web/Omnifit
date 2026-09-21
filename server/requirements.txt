@@ -1,0 +1,2 @@
+# Optional; stdlib works without these.
+certifi>=2024.0.0

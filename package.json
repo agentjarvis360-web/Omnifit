@@ -1,0 +1,21 @@
+{
+  "name": "omnifit",
+  "version": "1.0.0",
+  "description": "OmniFit — train, fuel, repeat",
+  "private": true,
+  "scripts": {
+    "start": "python3 serve 8766",
+    "sync": "npx cap sync",
+    "ios": "npx cap open ios",
+    "android": "npx cap open android",
+    "build:web": "echo 'Static web in www/ — no bundler step'"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.4.3",
+    "@capacitor/core": "^7.4.3",
+    "@capacitor/ios": "^7.4.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.4.3"
+  }
+}
