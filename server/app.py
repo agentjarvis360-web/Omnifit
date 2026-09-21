@@ -70,7 +70,17 @@ load_dotenv()
 
 
 def api_key():
-    return (os.environ.get("XAI_API_KEY") or "").strip()
+    # Prefer exact name; also accept common casing mistakes from dashboards.
+    for name in ("XAI_API_KEY", "XAI_KEY", "GROK_API_KEY"):
+        val = (os.environ.get(name) or "").strip()
+        if val:
+            return val
+    for key, val in os.environ.items():
+        if key.upper().replace("-", "_") == "XAI_API_KEY":
+            val = (val or "").strip()
+            if val:
+                return val
+    return ""
 
 
 def extract_json(text):
@@ -163,11 +173,13 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         path = self.path.split("?", 1)[0]
         if path in ("/", "/health", "/api/status"):
+            key = api_key()
             self.send_json(
                 200,
                 {
                     "ok": True,
-                    "scan": bool(api_key()),
+                    "scan": bool(key),
+                    "key_len": len(key),
                     "model": MODEL,
                     "service": "omnifit-meal-scan",
                 },
