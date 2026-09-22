@@ -1,4 +1,3 @@
-import urllib.parse
 #!/usr/bin/env python3
 """OmniFit meal-scan API (hosted). Keeps XAI_API_KEY server-side only."""
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
@@ -9,6 +8,7 @@ import re
 import ssl
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 
 try:
@@ -224,10 +224,18 @@ def search_open_food_facts(q, limit=10):
         }
     )
     url = "https://world.openfoodfacts.org/cgi/search.pl?" + params
-    try:
-        data = http_get_json(url)
-    except Exception as e:
-        sys.stderr.write("off_search %s: %s\n" % (type(e).__name__, e))
+    data = None
+    last_err = None
+    for attempt in range(2):
+        try:
+            data = http_get_json(url, timeout=SEARCH_TIMEOUT + (attempt * 4))
+            break
+        except Exception as e:
+            last_err = e
+            sys.stderr.write("off_search try%s %s: %s\n" % (attempt + 1, type(e).__name__, e))
+    if data is None:
+        if last_err:
+            sys.stderr.write("off_search failed: %s\n" % last_err)
         return []
     foods = []
     for product in data.get("products") or []:
@@ -382,14 +390,14 @@ class Handler(BaseHTTPRequestHandler):
             )
             return
         if path == "/api/search-food":
-            from urllib.parse import parse_qs as _parse_qs
-            qs = _parse_qs(urlparse(self.path).query or "")
+            qs = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query or "")
             q = (qs.get("q") or [""])[0]
             try:
                 foods = search_foods(q)
             except Exception as e:
                 sys.stderr.write("search_food %s: %s\n" % (type(e).__name__, e))
-                self.send_json(502, {"error": "search_failed", "foods": [], "message": "Search failed."})
+                # Still 200 with empty list so the app can show local foods without "unavailable".
+                self.send_json(200, {"foods": [], "error": "search_failed", "message": "Search failed."})
                 return
             self.send_json(200, {"foods": foods})
             return
