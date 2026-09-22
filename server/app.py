@@ -1,3 +1,4 @@
+import urllib.parse
 #!/usr/bin/env python3
 """OmniFit meal-scan API (hosted). Keeps XAI_API_KEY server-side only."""
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
@@ -29,26 +30,10 @@ CORS_ORIGINS = [
     if o.strip()
 ]
 
-SYSTEM = """You are a careful nutrition analyst estimating a meal from a photograph.
-Use USDA-style values for cooked food. Identify only foods that are actually visible.
-Estimate portion size from visual cues (typical 10.5-inch dinner plate, utensils, hands, packaging labels).
-If a nutrition label is readable, prefer it. Include drinks in frame.
-Do not invent hidden ingredients unless they are visually obvious (oil sheen, sauce, cheese).
-Round calories to the nearest 5 and macros to the nearest 1 gram.
-If uncertain, lower confidence and state assumptions in notes.
-Return JSON only with this shape:
-{
-  "name": "short meal name",
-  "confidence": 0.0,
-  "items": [{"name": "food", "portion": "estimated amount", "cal": 0, "p": 0, "c": 0, "f": 0}],
-  "cal": 0,
-  "p": 0,
-  "c": 0,
-  "f": 0,
-  "notes": "assumptions"
-}
-cal, p, c, f on the root object are totals for the whole meal.
-p = protein grams, c = carbohydrate grams, f = fat grams."""
+SYSTEM = """Estimate a meal from one photo. Be brief. Only foods you can see. USDA-style cooked values.
+Return JSON only:
+{"name":"short meal name","confidence":0.0,"items":[{"name":"food","portion":"amount","cal":0,"p":0,"c":0,"f":0}],"cal":0,"p":0,"c":0,"f":0,"notes":"short"}
+Root cal/p/c/f are meal totals (kcal and grams). Round cal to 5, macros to 1g. Max 6 items."""
 
 
 def load_dotenv():
@@ -150,6 +135,190 @@ def normalize(data):
     }
 
 
+SEARCH_TIMEOUT = 10
+OFF_USER_AGENT = "OmniFitFoodSearch/1.0 (+https://omnifit.app)"
+SSL_CTX = ssl.create_default_context()
+
+def fdc_api_key():
+    return (os.environ.get("FDC_API_KEY") or "").strip()
+
+
+def http_get_json(url, headers=None, timeout=SEARCH_TIMEOUT):
+    req = urllib.request.Request(
+        url,
+        headers=headers or {"User-Agent": OFF_USER_AGENT, "Accept": "application/json"},
+        method="GET",
+    )
+    with urllib.request.urlopen(req, timeout=timeout, context=SSL_CTX) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def kcal_from_off_nutrients(nutriments, product=None):
+    """Prefer energy-kcal; fall back to kJ."""
+    if not isinstance(nutriments, dict):
+        nutriments = {}
+    for key in (
+        "energy-kcal_serving",
+        "energy-kcal",
+        "energy-kcal_100g",
+        "energy-kcal_value",
+    ):
+        if key in nutriments and nutriments[key] not in (None, ""):
+            return num(nutriments[key])
+    for key in ("energy_serving", "energy", "energy_100g"):
+        if key in nutriments and nutriments[key] not in (None, ""):
+            # assume kJ if large
+            v = num(nutriments[key])
+            if v > 200:  # likely kJ
+                return v / 4.184
+            return v
+    return 0
+
+
+def macro_from_off(nutriments, kind):
+    for key in (f"{kind}_serving", kind, f"{kind}_100g"):
+        if key in nutriments and nutriments[key] not in (None, ""):
+            return num(nutriments[key])
+    return 0
+
+
+def off_product_to_food(product):
+    if not isinstance(product, dict):
+        return None
+    name_bits = [
+        product.get("brands") or product.get("brand") or "",
+        product.get("product_name") or product.get("product_name_en") or "",
+    ]
+    name = " ".join(str(b).strip() for b in name_bits if b).strip()
+    if not name:
+        name = str(product.get("generic_name") or "").strip()
+    if not name:
+        return None
+    nutriments = product.get("nutriments") or {}
+    cal = kcal_from_off_nutrients(nutriments, product)
+    p = macro_from_off(nutriments, "proteins")
+    c = macro_from_off(nutriments, "carbohydrates")
+    f = macro_from_off(nutriments, "fat")
+    if cal <= 0 and p <= 0 and c <= 0 and f <= 0:
+        return None
+    code = product.get("code") or product.get("_id") or name
+    return {
+        "id": "off:" + str(code),
+        "name": name[:120],
+        "cal": int(round(cal)),
+        "p": int(round(p)),
+        "c": int(round(c)),
+        "f": int(round(f)),
+    }
+
+
+def search_open_food_facts(q, limit=10):
+    params = urllib.parse.urlencode(
+        {
+            "search_terms": q,
+            "search_simple": 1,
+            "action": "process",
+            "json": 1,
+            "page_size": max(limit, 15),
+            "fields": "code,product_name,product_name_en,brands,generic_name,nutriments",
+        }
+    )
+    url = "https://world.openfoodfacts.org/cgi/search.pl?" + params
+    try:
+        data = http_get_json(url)
+    except Exception as e:
+        sys.stderr.write("off_search %s: %s\n" % (type(e).__name__, e))
+        return []
+    foods = []
+    for product in data.get("products") or []:
+        item = off_product_to_food(product)
+        if item:
+            foods.append(item)
+        if len(foods) >= limit:
+            break
+    return foods
+
+
+def search_fdc(q, limit=10):
+    key = fdc_api_key()
+    if not key:
+        return []
+    params = urllib.parse.urlencode(
+        {
+            "query": q,
+            "pageSize": limit,
+            "dataType": "Branded,Foundation,SR Legacy",
+            "api_key": key,
+        }
+    )
+    url = "https://api.nal.usda.gov/fdc/v1/foods/search?" + params
+    try:
+        data = http_get_json(url)
+    except Exception as e:
+        sys.stderr.write("fdc_search %s: %s\n" % (type(e).__name__, e))
+        return []
+    foods = []
+    for food in data.get("foods") or []:
+        desc = str(food.get("description") or "").strip()
+        brand = str(food.get("brandOwner") or food.get("brandName") or "").strip()
+        name = (brand + " " + desc).strip() if brand else desc
+        if not name:
+            continue
+        nutrients = {n.get("nutrientName"): n.get("value") for n in (food.get("foodNutrients") or []) if isinstance(n, dict)}
+        # Prefer labeled serving nutrients when present via foodNutrients ids
+        cal = num(nutrients.get("Energy"))
+        # Energy may be kJ — FDC branded often kcal as Energy
+        p = num(nutrients.get("Protein"))
+        c = num(nutrients.get("Carbohydrate, by difference"))
+        f = num(nutrients.get("Total lipid (fat)"))
+        # Also check nutrientNumber style
+        if not cal:
+            for n in food.get("foodNutrients") or []:
+                if not isinstance(n, dict):
+                    continue
+                nid = str(n.get("nutrientNumber") or n.get("nutrientId") or "")
+                if nid in ("208", "1008") or str(n.get("nutrientName", "")).lower() == "energy":
+                    cal = num(n.get("value"))
+        if cal <= 0 and p <= 0 and c <= 0 and f <= 0:
+            continue
+        fdc_id = food.get("fdcId") or name
+        foods.append(
+            {
+                "id": "fdc:" + str(fdc_id),
+                "name": name[:120],
+                "cal": int(round(cal)),
+                "p": int(round(p)),
+                "c": int(round(c)),
+                "f": int(round(f)),
+            }
+        )
+        if len(foods) >= limit:
+            break
+    return foods
+
+
+def search_foods(q):
+    q = (q or "").strip()[:80]
+    if len(q) < 2:
+        return []
+    # Prefer branded FDC when key present, else OFF; merge/dedupe
+    results = []
+    seen = set()
+
+    def add_all(items):
+        for it in items:
+            key = re.sub(r"[^a-z0-9]+", " ", (it.get("name") or "").lower()).strip()
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            results.append(it)
+
+    add_all(search_fdc(q, limit=10))
+    if len(results) < 15:
+        add_all(search_open_food_facts(q, limit=15 - len(results)))
+    return results[:15]
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         sys.stderr.write("%s - %s\n" % (self.address_string(), fmt % args))
@@ -208,8 +377,21 @@ class Handler(BaseHTTPRequestHandler):
                     "env_count": len(os.environ),
                     "model": MODEL,
                     "service": "omnifit-meal-scan",
+            "search": True,
                 },
             )
+            return
+        if path == "/api/search-food":
+            from urllib.parse import parse_qs as _parse_qs
+            qs = _parse_qs(urlparse(self.path).query or "")
+            q = (qs.get("q") or [""])[0]
+            try:
+                foods = search_foods(q)
+            except Exception as e:
+                sys.stderr.write("search_food %s: %s\n" % (type(e).__name__, e))
+                self.send_json(502, {"error": "search_failed", "foods": [], "message": "Search failed."})
+                return
+            self.send_json(200, {"foods": foods})
             return
         self.send_json(404, {"error": "not_found", "message": "Not found"})
 
@@ -257,6 +439,7 @@ class Handler(BaseHTTPRequestHandler):
         req_body = {
             "model": MODEL,
             "temperature": 0,
+            "max_tokens": 500,
             "response_format": {"type": "json_object"},
             "messages": [
                 {"role": "system", "content": SYSTEM},
@@ -265,7 +448,7 @@ class Handler(BaseHTTPRequestHandler):
                     "content": [
                         {
                             "type": "image_url",
-                            "image_url": {"url": image, "detail": "high"},
+                            "image_url": {"url": image, "detail": "low"},
                         },
                         {"type": "text", "text": user_text},
                     ],
@@ -282,7 +465,7 @@ class Handler(BaseHTTPRequestHandler):
             method="POST",
         )
         try:
-            with urllib.request.urlopen(req, timeout=180, context=SSL_CTX) as resp:
+            with urllib.request.urlopen(req, timeout=75, context=SSL_CTX) as resp:
                 raw = json.loads(resp.read().decode("utf-8"))
         except urllib.error.HTTPError as e:
             detail = e.read().decode("utf-8", "ignore")[:300]

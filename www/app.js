@@ -655,7 +655,10 @@
     const analyzing = scan.status === "analyzing";
     let body = `<img class="scan-photo" src="${scan.image}" alt="Meal photo" />`;
     if (analyzing) {
-      body += `<div class="scan-status"><div class="spin" aria-hidden="true"></div>Reading the plate…</div>`;
+      const secs = scan.startedAt ? Math.max(0, Math.floor((Date.now() - scan.startedAt) / 1000)) : 0;
+      const hint = secs < 8 ? "Reading the plate…" : secs < 25 ? "Still working — meal scans can take a bit…" : "Almost there — hanging on a slow server wake…";
+      body += `<div class="scan-status"><div class="spin" aria-hidden="true"></div>${hint} (${secs}s)</div>
+        <div class="btn-row" style="margin-top:10px"><button class="btn btn-ghost" data-act="scan-cancel">Cancel</button></div>`;
     } else if (scan.status === "error") {
       body += `<div class="scan-error">${esc(scan.error || "Scan failed.")}</div>
         <div class="field"><label>Anything to add?</label><input id="scan-note" placeholder="e.g. 6 oz salmon, olive oil" value="${esc(scan.note)}" /></div>
@@ -1087,7 +1090,8 @@
       const url = URL.createObjectURL(file);
       const img = new Image();
       img.onload = () => {
-        const max = 1280;
+        // Keep uploads small so phone → Render → Grok finishes sooner.
+        const max = 1024;
         let w = img.naturalWidth || img.width;
         let h = img.naturalHeight || img.height;
         if (w > max || h > max) {
@@ -1101,7 +1105,7 @@
         const ctx = canvas.getContext("2d");
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         URL.revokeObjectURL(url);
-        resolve(canvas.toDataURL("image/jpeg", 0.84));
+        resolve(canvas.toDataURL("image/jpeg", 0.72));
       };
       img.onerror = () => {
         URL.revokeObjectURL(url);
@@ -1127,13 +1131,28 @@
   async function analyzeScan() {
     scan.status = "analyzing";
     scan.error = "";
+    scan.startedAt = Date.now();
+    if (scan._tick) clearInterval(scan._tick);
+    scan._tick = setInterval(() => {
+      if (scan.status !== "analyzing") {
+        clearInterval(scan._tick);
+        scan._tick = null;
+        return;
+      }
+      render();
+    }, 1000);
     render();
+    const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+    scan._abort = controller;
+    const timeoutMs = 90000;
+    const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
     try {
       const base = (window.OMNIFIT && OMNIFIT.scanApiBase) ? String(OMNIFIT.scanApiBase).replace(/\/+$/, "") : "";
       const res = await fetch(base + "/api/scan-meal", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: scan.image, note: scan.note })
+        body: JSON.stringify({ image: scan.image, note: scan.note }),
+        signal: controller ? controller.signal : undefined
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -1145,10 +1164,23 @@
       scan.result = data;
       scan.status = "ready";
       render();
-    } catch {
+    } catch (err) {
+      if (scan.error === "Scan canceled.") {
+        render();
+        return;
+      }
       scan.status = "error";
-      scan.error = "Could not reach the scan service.";
+      const aborted = err && (err.name === "AbortError" || /abort/i.test(String(err.message || "")));
+      scan.error = aborted
+        ? "Scan timed out. Try a closer photo or wait a few seconds and retry (server may be waking up)."
+        : "Could not reach the scan service. Check Wi‑Fi and try again.";
       render();
+    } finally {
+      if (timer) clearTimeout(timer);
+      if (scan._tick) {
+        clearInterval(scan._tick);
+        scan._tick = null;
+      }
     }
   }
 
@@ -1245,6 +1277,14 @@
       foodMeal = id;
       foodQuery = "";
       view = "food";
+      render();
+      return;
+    }
+    if (act === "scan-cancel") {
+      try { if (scan._abort) scan._abort.abort(); } catch (e) {}
+      scan.status = "error";
+      scan.error = "Scan canceled.";
+      if (scan._tick) { clearInterval(scan._tick); scan._tick = null; }
       render();
       return;
     }
