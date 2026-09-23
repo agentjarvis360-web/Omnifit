@@ -370,6 +370,45 @@ def slugify_est(name):
     return (s or "food")[:60]
 
 
+
+# Lightweight chain menu fallback (typical published values). Used when FDC/OFF miss
+# and estimate is slow or rate-limited — keeps restaurant searches useful.
+CURATED_RESTAURANT = [
+    {"id": "cur:chip-burrito-chicken", "name": "Chipotle Chicken Burrito", "cal": 1030, "p": 54, "c": 101, "f": 44},
+    {"id": "cur:chip-bowl-chicken", "name": "Chipotle Chicken Bowl", "cal": 630, "p": 46, "c": 56, "f": 24},
+    {"id": "cur:chip-bowl-steak", "name": "Chipotle Steak Bowl", "cal": 620, "p": 48, "c": 53, "f": 24},
+    {"id": "cur:chip-sofritas-bowl", "name": "Chipotle Sofritas Bowl", "cal": 580, "p": 26, "c": 67, "f": 24},
+    {"id": "cur:chip-chips-guac", "name": "Chipotle Chips and Guacamole", "cal": 770, "p": 10, "c": 71, "f": 52},
+    {"id": "cur:mcd-big-mac", "name": "McDonald's Big Mac", "cal": 590, "p": 25, "c": 46, "f": 34},
+    {"id": "cur:mcd-qp", "name": "McDonald's Quarter Pounder with Cheese", "cal": 520, "p": 30, "c": 42, "f": 26},
+    {"id": "cur:mcd-nuggets-10", "name": "McDonald's Chicken McNuggets (10 piece)", "cal": 410, "p": 24, "c": 26, "f": 24},
+    {"id": "cur:sbux-latte", "name": "Starbucks Caffe Latte Grande", "cal": 190, "p": 13, "c": 18, "f": 7},
+    {"id": "cur:sbux-bacon-gouda", "name": "Starbucks Bacon Gouda Sandwich", "cal": 360, "p": 18, "c": 34, "f": 17},
+    {"id": "cur:tb-crunchwrap", "name": "Taco Bell Crunchwrap Supreme", "cal": 530, "p": 16, "c": 54, "f": 28},
+    {"id": "cur:tb-bean-burrito", "name": "Taco Bell Bean Burrito", "cal": 380, "p": 13, "c": 55, "f": 11},
+    {"id": "cur:cfa-sandwich", "name": "Chick-fil-A Chicken Sandwich", "cal": 440, "p": 29, "c": 41, "f": 19},
+    {"id": "cur:ino-double", "name": "In-N-Out Double-Double", "cal": 670, "p": 37, "c": 41, "f": 41},
+    {"id": "cur:sub-turkey", "name": "Subway Turkey Breast 6-inch", "cal": 280, "p": 18, "c": 46, "f": 4},
+    {"id": "cur:pan-broccoli", "name": "Panera Broccoli Cheddar Soup Bowl", "cal": 360, "p": 13, "c": 30, "f": 21},
+]
+
+
+def search_curated_restaurant(q, limit=8):
+    tokens = re.sub(r"[^a-z0-9]+", " ", (q or "").lower()).split()
+    tokens = [t for t in tokens if t]
+    if not tokens:
+        return []
+    scored = []
+    for it in CURATED_RESTAURANT:
+        name = (it.get("name") or "").lower()
+        if all(t in name for t in tokens):
+            scored.append((0, it))
+        elif sum(1 for t in tokens if t in name) >= max(1, len(tokens) - 1):
+            scored.append((1, it))
+    scored.sort(key=lambda x: x[0])
+    return [it for _, it in scored[:limit]]
+
+
 def search_estimate(q, limit=6):
     """Grok estimate fill for restaurant-like / thin FDC+OFF results. ids: est:<slug>."""
     key = api_key()
@@ -466,10 +505,14 @@ def search_foods(q):
 
     # Order: FDC first; for restaurant-like queries estimate BEFORE Open Food Facts
     # so grocery OFF hits do not burn the request budget and crowd out menu items.
+    if restaurant:
+        add_all(search_curated_restaurant(q, limit=8), "curated")
     add_all(search_fdc(q, limit=6 if restaurant else 8), "fdc")
     if restaurant:
-        add_all(search_estimate(q, limit=6), "estimate")
-        off_budget = min(4, max(0, 15 - len(results)))
+        # Estimate after curated so menu items appear even if Grok is slow/unavailable.
+        if len(results) < 10:
+            add_all(search_estimate(q, limit=min(6, 15 - len(results))), "estimate")
+        off_budget = min(3, max(0, 15 - len(results)))
         if off_budget:
             add_all(search_open_food_facts(q, limit=off_budget), "off")
     else:
