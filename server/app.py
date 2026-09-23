@@ -140,7 +140,8 @@ OFF_USER_AGENT = "OmniFitFoodSearch/1.0 (+https://omnifit.app)"
 SSL_CTX = ssl.create_default_context()
 
 def fdc_api_key():
-    return (os.environ.get("FDC_API_KEY") or "").strip()
+    # USDA FoodData Central: use real key if set, else DEMO_KEY (rate-limited but works).
+    return (os.environ.get("FDC_API_KEY") or "DEMO_KEY").strip()
 
 
 def http_get_json(url, headers=None, timeout=SEARCH_TIMEOUT):
@@ -247,6 +248,39 @@ def search_open_food_facts(q, limit=10):
     return foods
 
 
+def fdc_energy_kcal(food):
+    """Prefer nutrient 208 / unitName KCAL; convert KJ/1062 via /4.184. Never treat kJ as kcal."""
+    nutrients = food.get("foodNutrients") or []
+    kcal = None
+    kj = None
+    for n in nutrients:
+        if not isinstance(n, dict):
+            continue
+        unit = str(n.get("unitName") or "").upper().strip()
+        nid = str(n.get("nutrientNumber") or "")
+        name = str(n.get("nutrientName") or "").lower()
+        val = num(n.get("value"))
+        if val <= 0:
+            continue
+        if unit == "KCAL" or nid == "208":
+            kcal = val
+            break
+        if unit in ("KJ", "KJOULE", "KJOULES") or nid in ("1062", "268"):
+            if kj is None:
+                kj = val
+        elif "energy" in name and unit == "KCAL":
+            kcal = val
+            break
+        elif "energy" in name and unit in ("KJ", "KJOULE", "KJOULES"):
+            if kj is None:
+                kj = val
+    if kcal is not None:
+        return kcal
+    if kj is not None:
+        return kj / 4.184
+    return 0
+
+
 def search_fdc(q, limit=10):
     key = fdc_api_key()
     if not key:
@@ -272,21 +306,15 @@ def search_fdc(q, limit=10):
         name = (brand + " " + desc).strip() if brand else desc
         if not name:
             continue
-        nutrients = {n.get("nutrientName"): n.get("value") for n in (food.get("foodNutrients") or []) if isinstance(n, dict)}
-        # Prefer labeled serving nutrients when present via foodNutrients ids
-        cal = num(nutrients.get("Energy"))
-        # Energy may be kJ — FDC branded often kcal as Energy
+        nutrients = {
+            n.get("nutrientName"): n.get("value")
+            for n in (food.get("foodNutrients") or [])
+            if isinstance(n, dict)
+        }
+        cal = fdc_energy_kcal(food)
         p = num(nutrients.get("Protein"))
         c = num(nutrients.get("Carbohydrate, by difference"))
         f = num(nutrients.get("Total lipid (fat)"))
-        # Also check nutrientNumber style
-        if not cal:
-            for n in food.get("foodNutrients") or []:
-                if not isinstance(n, dict):
-                    continue
-                nid = str(n.get("nutrientNumber") or n.get("nutrientId") or "")
-                if nid in ("208", "1008") or str(n.get("nutrientName", "")).lower() == "energy":
-                    cal = num(n.get("value"))
         if cal <= 0 and p <= 0 and c <= 0 and f <= 0:
             continue
         fdc_id = food.get("fdcId") or name
@@ -305,26 +333,150 @@ def search_fdc(q, limit=10):
     return foods
 
 
+RESTAURANT_HINTS = (
+    "chipotle", "mcdonald", "mcdonalds", "starbucks", "taco bell", "tacobell",
+    "subway", "panera", "wendy", "wendys", "chick-fil-a", "chickfila", "in-n-out",
+    "innout", "burger king", "burgerking", "whopper", "domino", "pizza hut",
+    "pizzahut", "kfc", "popeyes", "sweetgreen", "cava", "shake shack",
+    "five guys", "arby", "sonic", "dunkin", "jack in the box", "del taco",
+    "panda express", "wingstop", "raising cane",
+)
+MEAL_HINTS = (
+    "burrito", "bowl", "combo", "whopper", "meal", "grande", "venti", "value meal",
+    "happy meal", "crunchwrap", "chalupa", "mcmuffin", "frappuccino", "latte",
+    "nugget", "quarter pounder", "big mac", "fillet", "filet",
+)
+
+
+def query_looks_restaurant(q):
+    ql = re.sub(r"[^a-z0-9\s]+", " ", (q or "").lower()).strip()
+    if not ql:
+        return False
+    for hint in RESTAURANT_HINTS:
+        if hint in ql:
+            return True
+    tokens = ql.split()
+    for hint in MEAL_HINTS:
+        if " " in hint:
+            if hint in ql:
+                return True
+        elif hint in tokens:
+            return True
+    return False
+
+
+def slugify_est(name):
+    s = re.sub(r"[^a-z0-9]+", "-", (name or "").lower()).strip("-")
+    return (s or "food")[:60]
+
+
+def search_estimate(q, limit=6):
+    """Grok estimate fill for restaurant-like / thin FDC+OFF results. ids: est:<slug>."""
+    key = api_key()
+    if not key:
+        return []
+    prompt = (
+        "You estimate typical US restaurant/menu nutrition. Query: %r\n"
+        "Return JSON only: {\"foods\":[{\"name\":\"Brand Item\",\"cal\":0,\"p\":0,\"c\":0,\"f\":0,\"portion\":\"typical serving\"}]}\n"
+        "Up to %d plausible matches for what the user likely wants. Use published-ish brand names when clear "
+        "(e.g. Chipotle Chicken Burrito). cal=kcal integers; p/c/f grams integers. No markdown."
+    ) % (q, limit)
+    req_body = {
+        "model": MODEL,
+        "temperature": 0,
+        "max_tokens": 700,
+        "response_format": {"type": "json_object"},
+        "messages": [
+            {
+                "role": "system",
+                "content": "You return nutrition estimates as JSON only. No prose.",
+            },
+            {"role": "user", "content": prompt},
+        ],
+    }
+    req = urllib.request.Request(
+        XAI_URL,
+        data=json.dumps(req_body).encode("utf-8"),
+        headers={
+            "Authorization": "Bearer " + key,
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=25, context=SSL_CTX) as resp:
+            raw = json.loads(resp.read().decode("utf-8"))
+        content = raw["choices"][0]["message"]["content"]
+        if isinstance(content, list):
+            content = "".join(
+                part.get("text", "") if isinstance(part, dict) else str(part) for part in content
+            )
+        data = extract_json(content)
+    except Exception as e:
+        sys.stderr.write("estimate_search %s: %s\n" % (type(e).__name__, e))
+        return []
+    foods = []
+    for it in data.get("foods") or []:
+        if not isinstance(it, dict):
+            continue
+        name = str(it.get("name") or "").strip()
+        if not name:
+            continue
+        cal = int(round(num(it.get("cal"))))
+        p = int(round(num(it.get("p"))))
+        c = int(round(num(it.get("c"))))
+        f = int(round(num(it.get("f"))))
+        if cal <= 0 and p <= 0 and c <= 0 and f <= 0:
+            continue
+        foods.append(
+            {
+                "id": "est:" + slugify_est(name),
+                "name": name[:120],
+                "cal": cal,
+                "p": p,
+                "c": c,
+                "f": f,
+            }
+        )
+        if len(foods) >= limit:
+            break
+    return foods
+
+
 def search_foods(q):
     q = (q or "").strip()[:80]
     if len(q) < 2:
-        return []
-    # Prefer branded FDC when key present, else OFF; merge/dedupe
+        return [], []
     results = []
     seen = set()
+    sources = []
+    restaurant = query_looks_restaurant(q)
 
-    def add_all(items):
+    def add_all(items, source):
+        added = 0
         for it in items:
             key = re.sub(r"[^a-z0-9]+", " ", (it.get("name") or "").lower()).strip()
             if not key or key in seen:
                 continue
             seen.add(key)
             results.append(it)
+            added += 1
+        if added and source not in sources:
+            sources.append(source)
 
-    add_all(search_fdc(q, limit=10))
-    if len(results) < 15:
-        add_all(search_open_food_facts(q, limit=15 - len(results)))
-    return results[:15]
+    # Order: FDC → Open Food Facts → estimate fill (max 15).
+    # For restaurant-like queries, leave room so est: results are not crowded out by grocery OFF hits.
+    add_all(search_fdc(q, limit=8), "fdc")
+    if restaurant:
+        off_budget = min(5, max(0, 9 - len(results)))
+    else:
+        off_budget = max(0, 15 - len(results))
+    if off_budget:
+        add_all(search_open_food_facts(q, limit=off_budget), "off")
+    need_estimate = len(results) < 5 or restaurant
+    if need_estimate and len(results) < 15:
+        add_all(search_estimate(q, limit=min(6, 15 - len(results))), "estimate")
+    return results[:15], sources
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -385,7 +537,9 @@ class Handler(BaseHTTPRequestHandler):
                     "env_count": len(os.environ),
                     "model": MODEL,
                     "service": "omnifit-meal-scan",
-            "search": True,
+                    "search": True,
+                    "fdc": bool(fdc_api_key()),
+                    "estimate": bool(key),
                 },
             )
             return
@@ -393,13 +547,13 @@ class Handler(BaseHTTPRequestHandler):
             qs = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query or "")
             q = (qs.get("q") or [""])[0]
             try:
-                foods = search_foods(q)
+                foods, sources = search_foods(q)
             except Exception as e:
                 sys.stderr.write("search_food %s: %s\n" % (type(e).__name__, e))
                 # Still 200 with empty list so the app can show local foods without "unavailable".
-                self.send_json(200, {"foods": [], "error": "search_failed", "message": "Search failed."})
+                self.send_json(200, {"foods": [], "sources": [], "error": "search_failed", "message": "Search failed."})
                 return
-            self.send_json(200, {"foods": foods})
+            self.send_json(200, {"foods": foods, "sources": sources})
             return
         self.send_json(404, {"error": "not_found", "message": "Not found"})
 

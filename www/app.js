@@ -17,6 +17,12 @@
   let filter = "All";
   let foodMeal = "breakfast";
   let foodQuery = "";
+  let remoteFoodById = {};
+  let foodSearchStatus = ""; // "", "searching", "error"
+  let lastRemoteFoods = [];
+  let lastRemoteQuery = "";
+  let foodSearchTimer = 0;
+  let foodSearchSeq = 0;
   let selectedDay = todayKey();
   let toastTimer = 0;
   let playerTimer = 0;
@@ -227,8 +233,139 @@
     return /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   }
 
+
+  function appConfig() {
+    if (typeof window !== "undefined" && window.OmniFitConfig) return window.OmniFitConfig;
+    if (typeof OmniFitConfig !== "undefined") return OmniFitConfig;
+    return {};
+  }
+
+  function scanApiBase() {
+    const base = (appConfig().scanApiBase || "").trim().replace(/\/+$/, "");
+    return base;
+  }
+
+  function isNativeApp() {
+    try {
+      if (window.Capacitor && typeof window.Capacitor.isNativePlatform === "function") {
+        return !!window.Capacitor.isNativePlatform();
+      }
+      if (window.Capacitor && window.Capacitor.isNative === true) return true;
+    } catch (_) {}
+    return !!appConfig().isNativeApp;
+  }
+
+  function foodCatalog() {
+    const extra = typeof RESTAURANT_FOODS !== "undefined" ? RESTAURANT_FOODS : [];
+    return FOODS.concat(extra);
+  }
+
+  function normalizeFoodName(name) {
+    return String(name || "")
+      .toLowerCase()
+      .replace(/['’]/g, "")
+      .replace(/&/g, " and ")
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim()
+      .replace(/\s+/g, " ");
+  }
+
+  function tokensMatch(name, query) {
+    const n = normalizeFoodName(name);
+    const tokens = normalizeFoodName(query).split(" ").filter(Boolean);
+    if (!tokens.length) return true;
+    return tokens.every((t) => n.includes(t));
+  }
+
+  function localFoodMatches(query) {
+    const q = (query || "").trim();
+    const catalog = foodCatalog();
+    if (!q) return catalog.slice(0, 40);
+    return catalog.filter((f) => tokensMatch(f.name, q));
+  }
+
+  function mergeFoodResults(local, remote) {
+    const out = [];
+    const seen = new Set();
+    for (const f of local.concat(remote || [])) {
+      if (!f || !f.name) continue;
+      const key = normalizeFoodName(f.name);
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      out.push(f);
+    }
+    return out;
+  }
+
+  function scheduleRemoteFoodSearch(query) {
+    clearTimeout(foodSearchTimer);
+    const q = (query || "").trim();
+    const base = scanApiBase();
+    if (!base || q.length < 2) {
+      foodSearchStatus = "";
+      lastRemoteFoods = [];
+      lastRemoteQuery = "";
+      return;
+    }
+    foodSearchTimer = setTimeout(() => remoteFoodSearch(q), 350);
+  }
+
+  async function remoteFoodSearch(query) {
+    const base = scanApiBase();
+    if (!base) return;
+    const seq = ++foodSearchSeq;
+    foodSearchStatus = "searching";
+    // Soft status only — keep current local results visible
+    const statusEl = document.getElementById("food-search-status");
+    if (statusEl) statusEl.textContent = "Searching…";
+    const ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+    const timer = setTimeout(() => ctrl && ctrl.abort(), 10000);
+    try {
+      const url = base + "/api/search-food?q=" + encodeURIComponent(query);
+      const res = await fetch(url, { method: "GET", signal: ctrl ? ctrl.signal : undefined });
+      clearTimeout(timer);
+      if (seq !== foodSearchSeq) return;
+      if (!res.ok) throw new Error("search_http");
+      const data = await res.json().catch(() => ({}));
+      const foods = Array.isArray(data.foods) ? data.foods : [];
+      const batch = [];
+      foods.forEach((f) => {
+        if (!f || !f.name) return;
+        const id = String(f.id || ("remote:" + normalizeFoodName(f.name).replace(/\s+/g, "-")));
+        const item = {
+          id,
+          name: String(f.name),
+          cal: Math.round(Number(f.cal) || 0),
+          p: Math.round(Number(f.p) || 0),
+          c: Math.round(Number(f.c) || 0),
+          f: Math.round(Number(f.f) || 0),
+          remote: true
+        };
+        remoteFoodById[id] = item;
+        batch.push(item);
+      });
+      lastRemoteFoods = batch;
+      lastRemoteQuery = query;
+      foodSearchStatus = batch.some((f) => String(f.id || "").startsWith("est:")) ? "estimated" : "";
+      if (view === "food" && foodQuery.trim() === query) render();
+    } catch (_) {
+      clearTimeout(timer);
+      if (seq !== foodSearchSeq) return;
+      foodSearchStatus = "error";
+      lastRemoteFoods = [];
+      lastRemoteQuery = "";
+      const el = document.getElementById("food-search-status");
+      if (el) el.textContent = "Online search unavailable — showing local foods";
+    }
+  }
+
+  function resolveFoodPick(id) {
+    if (remoteFoodById[id]) return remoteFoodById[id];
+    return foodCatalog().find((f) => f.id === id);
+  }
+
   function installHint() {
-    if (!isIos() || isStandalone() || sessionStorage.getItem("hide-install")) return "";
+    if (isNativeApp() || !isIos() || isStandalone() || sessionStorage.getItem("hide-install")) return "";
     return `<div class="install-hint">
         <strong>Safari is still in browser mode</strong>
         <p>Tap Share, then Add to Home Screen. On the add sheet, leave Open as Web App on. Open OmniFit from the new icon — not from Safari.</p>
@@ -621,8 +758,17 @@
   }
 
   function renderFood() {
-    const q = foodQuery.trim().toLowerCase();
-    const results = FOODS.filter((f) => !q || f.name.toLowerCase().includes(q));
+    const q = foodQuery.trim();
+    const local = localFoodMatches(q);
+    const justFetched = q && lastRemoteQuery === q ? lastRemoteFoods : [];
+    const cachedRemote = Object.values(remoteFoodById).filter((f) => tokensMatch(f.name, q));
+    // Keep just-fetched remote hits even if tokensMatch would drop them (API names can omit a token).
+    const results = mergeFoodResults(local, justFetched.concat(cachedRemote)).slice(0, 40);
+    let status = "";
+    if (foodSearchStatus === "searching") status = "Searching…";
+    else if (foodSearchStatus === "error") status = "Online search unavailable — showing local foods";
+    else if (foodSearchStatus === "estimated" || (justFetched.length && justFetched.some((f) => String(f.id || "").startsWith("est:"))))
+      status = "Some results estimated";
     return `${topbar(`<button class="icon-btn" data-act="nutrition" aria-label="Close">${xIcon()}</button>`)}
       <section class="screen sheet-screen">
         <div class="kicker">${esc(MEAL_LABEL[foodMeal])}</div>
@@ -631,22 +777,26 @@
           <button class="btn btn-primary" data-act="scan-camera">Take photo</button>
           <button class="btn btn-ghost" data-act="scan-library">Choose photo</button>
         </div>
-        <input class="search" id="food-search" placeholder="Search foods" value="${esc(foodQuery)}" />
+        <input class="search" id="food-search" placeholder="Search foods or restaurants" value="${esc(foodQuery)}" autocomplete="off" />
+        <p class="empty-note" id="food-search-status" style="min-height:1.2em;margin:6px 0 10px">${esc(status)}</p>
         <div class="custom-add">
           <input id="custom-name" placeholder="Custom item" />
           <input id="custom-cal" placeholder="kcal" inputmode="numeric" />
+          <input id="custom-p" placeholder="protein" inputmode="numeric" />
+          <input id="custom-c" placeholder="carbs" inputmode="numeric" />
+          <input id="custom-f" placeholder="fat" inputmode="numeric" />
         </div>
         <div class="btn-row">
           <button class="btn btn-ghost btn-sm" data-act="add-custom">Log custom</button>
         </div>
-        <div class="food-results">${results
+        <div class="food-results">${results.length ? results
           .map(
-            (f) => `<button class="row-card" data-act="pick-food" data-id="${f.id}">
+            (f) => `<button class="row-card" data-act="pick-food" data-id="${esc(f.id)}">
               <div><h3>${esc(f.name)}</h3><p>${f.cal} kcal · P ${f.p} C ${f.c} F ${f.f}</p></div>
               <span class="go">Add</span>
             </button>`
           )
-          .join("")}</div>
+          .join("") : `<p class="empty-note">${q ? "No matches. Try another search or log custom." : "Type to search foods and restaurants."}</p>`}</div>
       </section>`;
   }
 
@@ -655,10 +805,7 @@
     const analyzing = scan.status === "analyzing";
     let body = `<img class="scan-photo" src="${scan.image}" alt="Meal photo" />`;
     if (analyzing) {
-      const secs = scan.startedAt ? Math.max(0, Math.floor((Date.now() - scan.startedAt) / 1000)) : 0;
-      const hint = secs < 8 ? "Reading the plate…" : secs < 25 ? "Still working — meal scans can take a bit…" : "Almost there — hanging on a slow server wake…";
-      body += `<div class="scan-status"><div class="spin" aria-hidden="true"></div>${hint} (${secs}s)</div>
-        <div class="btn-row" style="margin-top:10px"><button class="btn btn-ghost" data-act="scan-cancel">Cancel</button></div>`;
+      body += `<div class="scan-status"><div class="spin" aria-hidden="true"></div>Reading the plate…</div>`;
     } else if (scan.status === "error") {
       body += `<div class="scan-error">${esc(scan.error || "Scan failed.")}</div>
         <div class="field"><label>Anything to add?</label><input id="scan-note" placeholder="e.g. 6 oz salmon, olive oil" value="${esc(scan.note)}" /></div>
@@ -866,11 +1013,6 @@
         <div class="field"><label>Step goal</label><input id="p-s" inputmode="numeric" value="${p.stepGoal}" /></div>
         <button class="btn btn-primary" data-act="save-profile">Save</button>
         <div class="btn-row"><button class="btn btn-ghost" data-act="reset">Reset demo data</button></div>
-      
-      <div class="card legal-links">
-        <a class="row-link" href="privacy.html">Privacy Policy</a>
-        <a class="row-link" href="terms.html">Terms of Use</a>
-      </div>
       </section>`;
   }
 
@@ -933,6 +1075,7 @@
         input.addEventListener("input", () => {
           foodQuery = input.value;
           const pos = input.selectionStart;
+          scheduleRemoteFoodSearch(foodQuery);
           render();
           const next = document.getElementById("food-search");
           if (next) {
@@ -1090,8 +1233,7 @@
       const url = URL.createObjectURL(file);
       const img = new Image();
       img.onload = () => {
-        // Keep uploads small so phone → Render → Grok finishes sooner.
-        const max = 1024;
+        const max = 1280;
         let w = img.naturalWidth || img.width;
         let h = img.naturalHeight || img.height;
         if (w > max || h > max) {
@@ -1105,7 +1247,7 @@
         const ctx = canvas.getContext("2d");
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         URL.revokeObjectURL(url);
-        resolve(canvas.toDataURL("image/jpeg", 0.72));
+        resolve(canvas.toDataURL("image/jpeg", 0.84));
       };
       img.onerror = () => {
         URL.revokeObjectURL(url);
@@ -1131,28 +1273,14 @@
   async function analyzeScan() {
     scan.status = "analyzing";
     scan.error = "";
-    scan.startedAt = Date.now();
-    if (scan._tick) clearInterval(scan._tick);
-    scan._tick = setInterval(() => {
-      if (scan.status !== "analyzing") {
-        clearInterval(scan._tick);
-        scan._tick = null;
-        return;
-      }
-      render();
-    }, 1000);
     render();
-    const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
-    scan._abort = controller;
-    const timeoutMs = 90000;
-    const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
     try {
-      const base = (window.OMNIFIT && OMNIFIT.scanApiBase) ? String(OMNIFIT.scanApiBase).replace(/\/+$/, "") : "";
-      const res = await fetch(base + "/api/scan-meal", {
+      const base = scanApiBase();
+      const scanUrl = (base || "") + "/api/scan-meal";
+      const res = await fetch(scanUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: scan.image, note: scan.note }),
-        signal: controller ? controller.signal : undefined
+        body: JSON.stringify({ image: scan.image, note: scan.note })
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -1164,23 +1292,10 @@
       scan.result = data;
       scan.status = "ready";
       render();
-    } catch (err) {
-      if (scan.error === "Scan canceled.") {
-        render();
-        return;
-      }
+    } catch {
       scan.status = "error";
-      const aborted = err && (err.name === "AbortError" || /abort/i.test(String(err.message || "")));
-      scan.error = aborted
-        ? "Scan timed out. Try a closer photo or wait a few seconds and retry (server may be waking up)."
-        : "Could not reach the scan service. Check Wi‑Fi and try again.";
+      scan.error = "Could not reach the scan service.";
       render();
-    } finally {
-      if (timer) clearTimeout(timer);
-      if (scan._tick) {
-        clearInterval(scan._tick);
-        scan._tick = null;
-      }
     }
   }
 
@@ -1276,15 +1391,10 @@
     if (act === "add-food") {
       foodMeal = id;
       foodQuery = "";
+      foodSearchStatus = "";
+      remoteFoodById = {};
+      clearTimeout(foodSearchTimer);
       view = "food";
-      render();
-      return;
-    }
-    if (act === "scan-cancel") {
-      try { if (scan._abort) scan._abort.abort(); } catch (e) {}
-      scan.status = "error";
-      scan.error = "Scan canceled.";
-      if (scan._tick) { clearInterval(scan._tick); scan._tick = null; }
       render();
       return;
     }
@@ -1375,7 +1485,7 @@
       return;
     }
     if (act === "pick-food") {
-      addFood(FOODS.find((f) => f.id === id));
+      addFood(resolveFoodPick(id));
       view = "nutrition";
       render();
       return;
@@ -1383,11 +1493,14 @@
     if (act === "add-custom") {
       const name = (document.getElementById("custom-name") || {}).value || "";
       const cal = Number((document.getElementById("custom-cal") || {}).value || 0);
+      const p = Number((document.getElementById("custom-p") || {}).value || 0) || 0;
+      const c = Number((document.getElementById("custom-c") || {}).value || 0) || 0;
+      const f = Number((document.getElementById("custom-f") || {}).value || 0) || 0;
       if (!name.trim() || !cal) {
         toast("Add a name and calories");
         return;
       }
-      addFood({ name: name.trim(), cal, p: 0, c: 0, f: 0 });
+      addFood({ name: name.trim(), cal, p, c, f });
       view = "nutrition";
       render();
       return;

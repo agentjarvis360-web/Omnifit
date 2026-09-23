@@ -7,7 +7,42 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		WTIMER01BUILD00000000001 /* WorkoutTimerKeeper.swift in Sources */ = {isa = PBXBuildFile; fileRef = WTIMER01REF0000000000001 /* WorkoutTimerKeeper.swift */; };
+		WCHIME01BUILD00000000001 /* WorkChime.caf in Resources */ = {isa = PBXBuildFile; fileRef = WCHIME01REF0000000000001 /* WorkChime.caf */; };
+		RCHIME01BUILD00000000001 /* RestChime.caf in Resources */ = {isa = PBXBuildFile; fileRef = RCHIME01REF0000000000001 /* RestChime.caf */; };
+		KALIVE01BUILD00000000001 /* KeepAlive.caf in Resources */ = {isa = PBXBuildFile; fileRef = KALIVE01REF0000000000001 /* KeepAlive.caf */; };
+		VBEGIN01BUILD00000000001 /* VoiceBegin.caf in Resources */ = {isa = PBXBuildFile; fileRef = VBEGIN01REF0000000000001 /* VoiceBegin.caf */; };
+		VSTOP01BUILD000000000001 /* VoiceStop.caf in Resources */ = {isa = PBXBuildFile; fileRef = VSTOP01REF0000000000001 /* VoiceStop.caf */; };
+
+		WCUEL01BUILD000000000001 /* WatchCuePlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = WCUEL01REF0000000000001 /* WatchCuePlayer.swift */; };
+		WVBGN01BUILD000000000001 /* VoiceBegin.caf in Resources */ = {isa = PBXBuildFile; fileRef = VBEGIN01REF0000000000001 /* VoiceBegin.caf */; };
+		WVSTP01BUILD000000000001 /* VoiceStop.caf in Resources */ = {isa = PBXBuildFile; fileRef = VSTOP01REF0000000000001 /* VoiceStop.caf */; };
+		WVNUM1BUILD000000000001 /* Voice1.caf in Resources */ = {isa = PBXBuildFile; fileRef = VNUM01REF0000000000001 /* Voice1.caf */; };
+		WVNUM2BUILD000000000001 /* Voice2.caf in Resources */ = {isa = PBXBuildFile; fileRef = VNUM02REF0000000000001 /* Voice2.caf */; };
+		WVNUM3BUILD000000000001 /* Voice3.caf in Resources */ = {isa = PBXBuildFile; fileRef = VNUM03REF0000000000001 /* Voice3.caf */; };
+		WVNUM4BUILD000000000001 /* Voice4.caf in Resources */ = {isa = PBXBuildFile; fileRef = VNUM04REF0000000000001 /* Voice4.caf */; };
+		WVNUM5BUILD000000000001 /* Voice5.caf in Resources */ = {isa = PBXBuildFile; fileRef = VNUM05REF0000000000001 /* Voice5.caf */; };
+
+		VNUM01BUILD000000000001 /* Voice1.caf in Resources */ = {isa = PBXBuildFile; fileRef = VNUM01REF0000000000001 /* Voice1.caf */; };
+		VNUM02BUILD000000000001 /* Voice2.caf in Resources */ = {isa = PBXBuildFile; fileRef = VNUM02REF0000000000001 /* Voice2.caf */; };
+		VNUM03BUILD000000000001 /* Voice3.caf in Resources */ = {isa = PBXBuildFile; fileRef = VNUM03REF0000000000001 /* Voice3.caf */; };
+		VNUM04BUILD000000000001 /* Voice4.caf in Resources */ = {isa = PBXBuildFile; fileRef = VNUM04REF0000000000001 /* Voice4.caf */; };
+		VNUM05BUILD000000000001 /* Voice5.caf in Resources */ = {isa = PBXBuildFile; fileRef = VNUM05REF0000000000001 /* Voice5.caf */; };
+		552E64656B9027FC6B0CA805 /* WatchWorkoutPayload.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCD05CF29219B875402F3FC5 /* WatchWorkoutPayload.swift */; };
+		5C931B981E62DDD73DE264BF /* WatchPhoneSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64CD0B4EE7A5F4D0EC47D27E /* WatchPhoneSession.swift */; };
+		4B6279C1AFD6508B2EA898DB /* OmniFitWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C612E9649A100B6A719BC056 /* OmniFitWatchApp.swift */; };
+		B37F66FE78FC152A44555A36 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4325A56799E7756F2FF04D5 /* ContentView.swift */; };
+		FE3B7841E1B46A25F343049C /* WatchSessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 604F42445061465895CB21C3 /* WatchSessionManager.swift */; };
+		0B8ECF7CC2F21218278DE612 /* WatchWorkoutPayload.swift in Sources */ = {isa = PBXBuildFile; fileRef = 700A5263B75276DC4688BE4F /* WatchWorkoutPayload.swift */; };
+		5DE201F64114DD879EF8FCDE /* OmniFitWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = C0F05A02970026FC3FE4EE22 /* OmniFitWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+
+		B22C33D44E55F6677889900A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A11B22C33D44E55F66778899 /* Assets.xcassets */; };
+		B33C44D55E66F77889900112 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A22B33C44D55E66F77889900 /* Assets.xcassets */; };
+		E2F3A4B5C678901234ABCDE0 /* OmniFitLiveActivityIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1E2F3A4B5C678901234ABCD /* OmniFitLiveActivityIntents.swift */; };
+		F3A4B5C678901234ABCDE01F /* OmniFitLiveActivityIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1E2F3A4B5C678901234ABCD /* OmniFitLiveActivityIntents.swift */; };
 		2FAD9763203C412B000D30F8 /* config.xml in Resources */ = {isa = PBXBuildFile; fileRef = 2FAD9762203C412B000D30F8 /* config.xml */; };
+		3E3D4E10723F1EB6FFD51591 /* OmniFitWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = A1EF9BFD8BC442CD5C372D70 /* OmniFitWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		46F1260C015810CEE0CF1125 /* OmniFitWorkoutLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7B5E81B220BC80EB2A71E6B /* OmniFitWorkoutLiveActivity.swift */; };
 		4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */ = {isa = PBXBuildFile; productRef = 4D22ABE82AF431CB00220026 /* CapApp-SPM */; };
 		50379B232058CBB4000EE86E /* capacitor.config.json in Resources */ = {isa = PBXBuildFile; fileRef = 50379B222058CBB4000EE86E /* capacitor.config.json */; };
 		504EC3081FED79650016851F /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 504EC3071FED79650016851F /* AppDelegate.swift */; };
@@ -15,10 +50,87 @@
 		504EC30F1FED79650016851F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 504EC30E1FED79650016851F /* Assets.xcassets */; };
 		504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC3101FED79650016851F /* LaunchScreen.storyboard */; };
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
+		5A01CBBB62BDEC1E8ECB8139 /* WorkoutLiveActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA03E0A01DD6662C77CC9CB0 /* WorkoutLiveActivityAttributes.swift */; };
+		6A97AE7B56863474194A8B9E /* WorkoutLiveActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA03E0A01DD6662C77CC9CB0 /* WorkoutLiveActivityAttributes.swift */; };
+		9C1A05C5DD0BAD0CFC246E16 /* LiveActivityPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89EC8CEF473C655611670A9F /* LiveActivityPlugin.swift */; };
+		A1B2C3D51FED7965001685AB /* PedometerPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D41FED7965001685AA /* PedometerPlugin.swift */; };
+		E082F03081A8FEA7F8428DEC /* OmniFitWidgetsBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 143AD5EC0A6222499C4B1241 /* OmniFitWidgetsBundle.swift */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		EAF659A00F8765344DDD1078 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 504EC2FC1FED79650016851F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 7A8FC01542D4FB89EA734C00;
+			remoteInfo = OmniFitWatch;
+		};
+
+		B7C1E2D3A4F5061728394A5B /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 504EC2FC1FED79650016851F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 989FF418AFADA2AEA0E2001C;
+			remoteInfo = OmniFitWidgets;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		5EBE4F9EC13107DA0EE212BF /* Embed Watch Content */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
+			dstSubfolderSpec = 16;
+			files = (
+				5DE201F64114DD879EF8FCDE /* OmniFitWatch.app in Embed Watch Content */,
+			);
+			name = "Embed Watch Content";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+
+		C913FDAB012CA0D39164EFCB /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				3E3D4E10723F1EB6FFD51591 /* OmniFitWidgets.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		WTIMER01REF0000000000001 /* WorkoutTimerKeeper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutTimerKeeper.swift; sourceTree = "<group>"; };
+		WCHIME01REF0000000000001 /* WorkChime.caf */ = {isa = PBXFileReference; lastKnownFileType = file; name = WorkChime.caf; path = Sounds/WorkChime.caf; sourceTree = "<group>"; };
+		RCHIME01REF0000000000001 /* RestChime.caf */ = {isa = PBXFileReference; lastKnownFileType = file; name = RestChime.caf; path = Sounds/RestChime.caf; sourceTree = "<group>"; };
+		KALIVE01REF0000000000001 /* KeepAlive.caf */ = {isa = PBXFileReference; lastKnownFileType = file; name = KeepAlive.caf; path = Sounds/KeepAlive.caf; sourceTree = "<group>"; };
+		VBEGIN01REF0000000000001 /* VoiceBegin.caf */ = {isa = PBXFileReference; lastKnownFileType = file; name = VoiceBegin.caf; path = Sounds/VoiceBegin.caf; sourceTree = "<group>"; };
+		VSTOP01REF0000000000001 /* VoiceStop.caf */ = {isa = PBXFileReference; lastKnownFileType = file; name = VoiceStop.caf; path = Sounds/VoiceStop.caf; sourceTree = "<group>"; };
+		WCUEL01REF0000000000001 /* WatchCuePlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchCuePlayer.swift; sourceTree = "<group>"; };
+		VNUM01REF0000000000001 /* Voice1.caf */ = {isa = PBXFileReference; lastKnownFileType = file; name = Voice1.caf; path = Sounds/Voice1.caf; sourceTree = "<group>"; };
+		VNUM02REF0000000000001 /* Voice2.caf */ = {isa = PBXFileReference; lastKnownFileType = file; name = Voice2.caf; path = Sounds/Voice2.caf; sourceTree = "<group>"; };
+		VNUM03REF0000000000001 /* Voice3.caf */ = {isa = PBXFileReference; lastKnownFileType = file; name = Voice3.caf; path = Sounds/Voice3.caf; sourceTree = "<group>"; };
+		VNUM04REF0000000000001 /* Voice4.caf */ = {isa = PBXFileReference; lastKnownFileType = file; name = Voice4.caf; path = Sounds/Voice4.caf; sourceTree = "<group>"; };
+		VNUM05REF0000000000001 /* Voice5.caf */ = {isa = PBXFileReference; lastKnownFileType = file; name = Voice5.caf; path = Sounds/Voice5.caf; sourceTree = "<group>"; };
+		DCD05CF29219B875402F3FC5 /* WatchWorkoutPayload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchWorkoutPayload.swift; sourceTree = "<group>"; };
+		64CD0B4EE7A5F4D0EC47D27E /* WatchPhoneSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchPhoneSession.swift; sourceTree = "<group>"; };
+		C612E9649A100B6A719BC056 /* OmniFitWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OmniFitWatchApp.swift; sourceTree = "<group>"; };
+		E4325A56799E7756F2FF04D5 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		604F42445061465895CB21C3 /* WatchSessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSessionManager.swift; sourceTree = "<group>"; };
+		700A5263B75276DC4688BE4F /* WatchWorkoutPayload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = WatchWorkoutPayload.swift; path = WatchWorkoutPayload.swift; sourceTree = "<group>"; };
+		6C54A3BADE57113B93F1B326 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		5F2793F2905049C7EBD8AC4D /* OmniFitWatch.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = OmniFitWatch.entitlements; sourceTree = "<group>"; };
+		C0F05A02970026FC3FE4EE22 /* OmniFitWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OmniFitWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
+
+		A11B22C33D44E55F66778899 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		A22B33C44D55E66F77889900 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		D1E2F3A4B5C678901234ABCD /* OmniFitLiveActivityIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OmniFitLiveActivityIntents.swift; sourceTree = "<group>"; };
+		143AD5EC0A6222499C4B1241 /* OmniFitWidgetsBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OmniFitWidgetsBundle.swift; sourceTree = "<group>"; };
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
+		41C2E5514952A8A0DE63DAB5 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		4A05B5AAD5AB9B1B3D081579 /* OmniFitWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = OmniFitWidgets.entitlements; sourceTree = "<group>"; };
 		50379B222058CBB4000EE86E /* capacitor.config.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = capacitor.config.json; sourceTree = "<group>"; };
 		504EC3041FED79650016851F /* App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = App.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		504EC3071FED79650016851F /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -27,10 +139,23 @@
 		504EC3111FED79650016851F /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		504EC3131FED79650016851F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		50B271D01FEDC1A000F3C39B /* public */ = {isa = PBXFileReference; lastKnownFileType = folder; path = public; sourceTree = "<group>"; };
+		89EC8CEF473C655611670A9F /* LiveActivityPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityPlugin.swift; sourceTree = "<group>"; };
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
+		A1B2C3D41FED7965001685AA /* PedometerPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PedometerPlugin.swift; sourceTree = "<group>"; };
+		A1EF9BFD8BC442CD5C372D70 /* OmniFitWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = OmniFitWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		C7B5E81B220BC80EB2A71E6B /* OmniFitWorkoutLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OmniFitWorkoutLiveActivity.swift; sourceTree = "<group>"; };
+		CA03E0A01DD6662C77CC9CB0 /* WorkoutLiveActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutLiveActivityAttributes.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		B2CCCAE90DC911B51E337567 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+
 		504EC3011FED79650016851F /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -39,21 +164,59 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		7A893D9F57E629AE0D42EFA8 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		6043D96E32014E2677E7DB1F /* OmniFitWatch */ = {
+			isa = PBXGroup;
+			children = (
+				C612E9649A100B6A719BC056 /* OmniFitWatchApp.swift */,
+				WCUEL01REF0000000000001 /* WatchCuePlayer.swift */,
+				E4325A56799E7756F2FF04D5 /* ContentView.swift */,
+				604F42445061465895CB21C3 /* WatchSessionManager.swift */,
+				700A5263B75276DC4688BE4F /* WatchWorkoutPayload.swift */,
+				6C54A3BADE57113B93F1B326 /* Info.plist */,
+				5F2793F2905049C7EBD8AC4D /* OmniFitWatch.entitlements */,
+				A22B33C44D55E66F77889900 /* Assets.xcassets */,
+			);
+			path = OmniFitWatch;
+			sourceTree = "<group>";
+		};
+
+		434FBCAEF4CF8A8C12F4D30F /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				DCD05CF29219B875402F3FC5 /* WatchWorkoutPayload.swift */,
+				CA03E0A01DD6662C77CC9CB0 /* WorkoutLiveActivityAttributes.swift */,
+				D1E2F3A4B5C678901234ABCD /* OmniFitLiveActivityIntents.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
 		504EC2FB1FED79650016851F = {
 			isa = PBXGroup;
 			children = (
 				958DCC722DB07C7200EA8C5F /* debug.xcconfig */,
 				504EC3061FED79650016851F /* App */,
 				504EC3051FED79650016851F /* Products */,
+				6043D96E32014E2677E7DB1F /* OmniFitWatch */,
+				434FBCAEF4CF8A8C12F4D30F /* Shared */,
+				E9FDA8288A4E779B1E94889C /* OmniFitWidgets */,
 			);
 			sourceTree = "<group>";
 		};
 		504EC3051FED79650016851F /* Products */ = {
 			isa = PBXGroup;
 			children = (
+				C0F05A02970026FC3FE4EE22 /* OmniFitWatch.app */,
+				A1EF9BFD8BC442CD5C372D70 /* OmniFitWidgets.appex */,
 				504EC3041FED79650016851F /* App.app */,
 			);
 			name = Products;
@@ -64,6 +227,21 @@
 			children = (
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
+				WCHIME01REF0000000000001 /* WorkChime.caf */,
+				RCHIME01REF0000000000001 /* RestChime.caf */,
+				KALIVE01REF0000000000001 /* KeepAlive.caf */,
+				VBEGIN01REF0000000000001 /* VoiceBegin.caf */,
+				VSTOP01REF0000000000001 /* VoiceStop.caf */,
+				VNUM01REF0000000000001 /* Voice1.caf */,
+				VNUM02REF0000000000001 /* Voice2.caf */,
+				VNUM03REF0000000000001 /* Voice3.caf */,
+				VNUM04REF0000000000001 /* Voice4.caf */,
+				VNUM05REF0000000000001 /* Voice5.caf */,
+
+				A1B2C3D41FED7965001685AA /* PedometerPlugin.swift */,
+				89EC8CEF473C655611670A9F /* LiveActivityPlugin.swift */,
+				WTIMER01REF0000000000001 /* WorkoutTimerKeeper.swift */,
+				64CD0B4EE7A5F4D0EC47D27E /* WatchPhoneSession.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
@@ -74,9 +252,40 @@
 			path = App;
 			sourceTree = "<group>";
 		};
+		E9FDA8288A4E779B1E94889C /* OmniFitWidgets */ = {
+			isa = PBXGroup;
+			children = (
+				143AD5EC0A6222499C4B1241 /* OmniFitWidgetsBundle.swift */,
+				C7B5E81B220BC80EB2A71E6B /* OmniFitWorkoutLiveActivity.swift */,
+				41C2E5514952A8A0DE63DAB5 /* Info.plist */,
+				4A05B5AAD5AB9B1B3D081579 /* OmniFitWidgets.entitlements */,
+				A11B22C33D44E55F66778899 /* Assets.xcassets */,
+			);
+			path = OmniFitWidgets;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		7A8FC01542D4FB89EA734C00 /* OmniFitWatch */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = FB620271943AF4E60F0CFBD7 /* Build configuration list for PBXNativeTarget "OmniFitWatch" */;
+			buildPhases = (
+				7FA6DAEEC21158B87F0FB428 /* Sources */,
+				B2CCCAE90DC911B51E337567 /* Frameworks */,
+				DA648D3C5DA5662DEF6BB949 /* Resources */,
+				B8E4F1A92C7D4E6F0A1B2C3D /* Strip xattrs for codesign */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = OmniFitWatch;
+			productName = OmniFitWatch;
+			productReference = C0F05A02970026FC3FE4EE22 /* OmniFitWatch.app */;
+			productType = "com.apple.product-type.application";
+		};
+
 		504EC3031FED79650016851F /* App */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 504EC3161FED79650016851F /* Build configuration list for PBXNativeTarget "App" */;
@@ -84,10 +293,15 @@
 				504EC3001FED79650016851F /* Sources */,
 				504EC3011FED79650016851F /* Frameworks */,
 				504EC3021FED79650016851F /* Resources */,
+				C913FDAB012CA0D39164EFCB /* Embed Foundation Extensions */,
+				5EBE4F9EC13107DA0EE212BF /* Embed Watch Content */,
+				A1B2C3D4E5F60718293A4B5C /* Strip xattrs for codesign */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				C8D2F3E4B5A61728394A5B6C /* PBXTargetDependency */,				4BD3D27C45B17D29032F319F /* PBXTargetDependency */,
+
 			);
 			name = App;
 			packageProductDependencies = (
@@ -96,6 +310,24 @@
 			productName = App;
 			productReference = 504EC3041FED79650016851F /* App.app */;
 			productType = "com.apple.product-type.application";
+		};
+		989FF418AFADA2AEA0E2001C /* OmniFitWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4BA54C6ED95F438F0D38F40C /* Build configuration list for PBXNativeTarget "OmniFitWidgets" */;
+			buildPhases = (
+				A8A9B27691A345C81BDAEBDA /* Sources */,
+				7A893D9F57E629AE0D42EFA8 /* Frameworks */,
+				26DED9F91A9E239DDD81AFD5 /* Resources */,
+				C5D6E7F8091A2B3C4D5E6F70 /* Strip xattrs for codesign */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = OmniFitWidgets;
+			productName = OmniFitWidgets;
+			productReference = A1EF9BFD8BC442CD5C372D70 /* OmniFitWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -130,12 +362,38 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
+				7A8FC01542D4FB89EA734C00 /* OmniFitWatch */,
+				989FF418AFADA2AEA0E2001C /* OmniFitWidgets */,
 				504EC3031FED79650016851F /* App */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		DA648D3C5DA5662DEF6BB949 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				WVBGN01BUILD000000000001 /* VoiceBegin.caf in Resources */,
+				WVSTP01BUILD000000000001 /* VoiceStop.caf in Resources */,
+				WVNUM1BUILD000000000001 /* Voice1.caf in Resources */,
+				WVNUM2BUILD000000000001 /* Voice2.caf in Resources */,
+				WVNUM3BUILD000000000001 /* Voice3.caf in Resources */,
+				WVNUM4BUILD000000000001 /* Voice4.caf in Resources */,
+				WVNUM5BUILD000000000001 /* Voice5.caf in Resources */,
+				B33C44D55E66F77889900112 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+
+		26DED9F91A9E239DDD81AFD5 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B22C33D44E55F6677889900A /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		504EC3021FED79650016851F /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -143,6 +401,17 @@
 				504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */,
 				50B271D11FEDC1A000F3C39B /* public in Resources */,
 				504EC30F1FED79650016851F /* Assets.xcassets in Resources */,
+				WCHIME01BUILD00000000001 /* WorkChime.caf in Resources */,
+				RCHIME01BUILD00000000001 /* RestChime.caf in Resources */,
+				KALIVE01BUILD00000000001 /* KeepAlive.caf in Resources */,
+				VBEGIN01BUILD00000000001 /* VoiceBegin.caf in Resources */,
+				VSTOP01BUILD000000000001 /* VoiceStop.caf in Resources */,
+				VNUM01BUILD000000000001 /* Voice1.caf in Resources */,
+				VNUM02BUILD000000000001 /* Voice2.caf in Resources */,
+				VNUM03BUILD000000000001 /* Voice3.caf in Resources */,
+				VNUM04BUILD000000000001 /* Voice4.caf in Resources */,
+				VNUM05BUILD000000000001 /* Voice5.caf in Resources */,
+
 				50379B232058CBB4000EE86E /* capacitor.config.json in Resources */,
 				504EC30D1FED79650016851F /* Main.storyboard in Resources */,
 				2FAD9763203C412B000D30F8 /* config.xml in Resources */,
@@ -150,17 +419,124 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+/* Begin PBXShellScriptBuildPhase section */
+		C5D6E7F8091A2B3C4D5E6F70 /* Strip xattrs for codesign */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Strip xattrs for codesign";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Clear Finder/resource-fork xattrs so codesign accepts the product\nAPP_PATH=\"${TARGET_BUILD_DIR}/${WRAPPER_NAME}\"\nif [ -e \"$APP_PATH\" ]; then\n  /usr/bin/xattr -cr \"$APP_PATH\" 2>/dev/null || true\n  /usr/bin/find \"$APP_PATH\" -exec /usr/bin/xattr -c {} \\; 2>/dev/null || true\nfi\n";
+		};
+
+		A1B2C3D4E5F60718293A4B5C /* Strip xattrs for codesign */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Strip xattrs for codesign";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Clear Finder/resource-fork xattrs so codesign accepts the product\nAPP_PATH=\"${TARGET_BUILD_DIR}/${WRAPPER_NAME}\"\nif [ -e \"$APP_PATH\" ]; then\n  /usr/bin/xattr -cr \"$APP_PATH\" 2>/dev/null || true\n  /usr/bin/find \"$APP_PATH\" -exec /usr/bin/xattr -c {} \\; 2>/dev/null || true\nfi\n";
+		};
+
+		B8E4F1A92C7D4E6F0A1B2C3D /* Strip xattrs for codesign */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Strip xattrs for codesign";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Clear Finder/resource-fork xattrs so codesign accepts the product\nAPP_PATH=\"${TARGET_BUILD_DIR}/${WRAPPER_NAME}\"\nif [ -e \"$APP_PATH\" ]; then\n  /usr/bin/xattr -cr \"$APP_PATH\" 2>/dev/null || true\n  /usr/bin/find \"$APP_PATH\" -exec /usr/bin/xattr -c {} \\; 2>/dev/null || true\nfi\n";
+		};
+
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		7FA6DAEEC21158B87F0FB428 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4B6279C1AFD6508B2EA898DB /* OmniFitWatchApp.swift in Sources */,
+				B37F66FE78FC152A44555A36 /* ContentView.swift in Sources */,
+				WCUEL01BUILD000000000001 /* WatchCuePlayer.swift in Sources */,
+				FE3B7841E1B46A25F343049C /* WatchSessionManager.swift in Sources */,
+				0B8ECF7CC2F21218278DE612 /* WatchWorkoutPayload.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+
 		504EC3001FED79650016851F /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
+				A1B2C3D51FED7965001685AB /* PedometerPlugin.swift in Sources */,
+				9C1A05C5DD0BAD0CFC246E16 /* LiveActivityPlugin.swift in Sources */,
+				WTIMER01BUILD00000000001 /* WorkoutTimerKeeper.swift in Sources */,
+				5C931B981E62DDD73DE264BF /* WatchPhoneSession.swift in Sources */,
+				552E64656B9027FC6B0CA805 /* WatchWorkoutPayload.swift in Sources */,
+				E2F3A4B5C678901234ABCDE0 /* OmniFitLiveActivityIntents.swift in Sources */,
+				5A01CBBB62BDEC1E8ECB8139 /* WorkoutLiveActivityAttributes.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A8A9B27691A345C81BDAEBDA /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E082F03081A8FEA7F8428DEC /* OmniFitWidgetsBundle.swift in Sources */,
+				46F1260C015810CEE0CF1125 /* OmniFitWorkoutLiveActivity.swift in Sources */,
+				F3A4B5C678901234ABCDE01F /* OmniFitLiveActivityIntents.swift in Sources */,
+				6A97AE7B56863474194A8B9E /* WorkoutLiveActivityAttributes.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		4BD3D27C45B17D29032F319F /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 7A8FC01542D4FB89EA734C00 /* OmniFitWatch */;
+			targetProxy = EAF659A00F8765344DDD1078 /* PBXContainerItemProxy */;
+		};
+
+		C8D2F3E4B5A61728394A5B6C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 989FF418AFADA2AEA0E2001C /* OmniFitWidgets */;
+			targetProxy = B7C1E2D3A4F5061728394A5B /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin PBXVariantGroup section */
 		504EC30B1FED79650016851F /* Main.storyboard */ = {
@@ -182,6 +558,91 @@
 /* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
+		08B7007ACA72666F2FC96A6F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = OmniFitWatch/OmniFitWatch.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 91;
+				DEVELOPMENT_TEAM = F35JDPN96Q;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = OmniFitWatch/Info.plist;
+				INFOPLIST_KEY_WKApplication = YES;
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.agentjarvis360.omnifit;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.91;
+				PRODUCT_BUNDLE_IDENTIFIER = com.agentjarvis360.omnifit.watchkitapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Debug;
+		};
+		60E2DE340FFA702E8DD7FB67 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = OmniFitWatch/OmniFitWatch.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 91;
+				DEVELOPMENT_TEAM = F35JDPN96Q;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = OmniFitWatch/Info.plist;
+				INFOPLIST_KEY_WKApplication = YES;
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.agentjarvis360.omnifit;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.91;
+				PRODUCT_BUNDLE_IDENTIFIER = com.agentjarvis360.omnifit.watchkitapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Release;
+		};
+
+		0A5A3344DE72EA4809BBB38A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = OmniFitWidgets/OmniFitWidgets.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 91;
+				DEVELOPMENT_TEAM = F35JDPN96Q;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = OmniFitWidgets/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.91;
+				PRODUCT_BUNDLE_IDENTIFIER = com.agentjarvis360.omnifit.OmniFitWidgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
 		504EC3141FED79650016851F /* Debug */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 958DCC722DB07C7200EA8C5F /* debug.xcconfig */;
@@ -235,7 +696,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
@@ -291,7 +752,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -307,15 +768,15 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 91;
 				DEVELOPMENT_TEAM = F35JDPN96Q;
 				INFOPLIST_FILE = App/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.91;
 				OTHER_SWIFT_FLAGS = "$(inherited) \"-D\" \"COCOAPODS\" \"-DDEBUG\"";
 				PRODUCT_BUNDLE_IDENTIFIER = com.agentjarvis360.omnifit;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -330,15 +791,15 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 91;
 				DEVELOPMENT_TEAM = F35JDPN96Q;
 				INFOPLIST_FILE = App/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.91;
 				PRODUCT_BUNDLE_IDENTIFIER = com.agentjarvis360.omnifit;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";
@@ -347,9 +808,56 @@
 			};
 			name = Release;
 		};
+		F3843A05F2A13A71EC33AAB9 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = OmniFitWidgets/OmniFitWidgets.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 91;
+				DEVELOPMENT_TEAM = F35JDPN96Q;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = OmniFitWidgets/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.91;
+				PRODUCT_BUNDLE_IDENTIFIER = com.agentjarvis360.omnifit.OmniFitWidgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		FB620271943AF4E60F0CFBD7 /* Build configuration list for PBXNativeTarget "OmniFitWatch" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				08B7007ACA72666F2FC96A6F /* Debug */,
+				60E2DE340FFA702E8DD7FB67 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+
+		4BA54C6ED95F438F0D38F40C /* Build configuration list for PBXNativeTarget "OmniFitWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0A5A3344DE72EA4809BBB38A /* Debug */,
+				F3843A05F2A13A71EC33AAB9 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		504EC2FF1FED79650016851F /* Build configuration list for PBXProject "App" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

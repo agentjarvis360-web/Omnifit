@@ -787,7 +787,7 @@ img { display: block; max-width: 100%; }
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
-.custom-add { display: grid; grid-template-columns: 1fr 88px; gap: 8px; margin-top: 12px; }
+.custom-add { display: grid; grid-template-columns: 1fr 72px 64px 64px 56px; gap: 8px; margin-top: 12px; }
 .custom-add input {
   height: 44px;
   border-radius: 12px;

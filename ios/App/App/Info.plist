@@ -19,11 +19,36 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>$(MARKETING_VERSION)</string>
+	<string>1.0.91</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.agentjarvis360.omnifit</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>omnifit</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
-	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<string>91</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>OmniFit needs the camera to photograph meals and body progress shots.</string>
+	<key>NSMotionUsageDescription</key>
+	<string>OmniFit uses motion to count your steps from the iPhone.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>OmniFit may save progress photos you take to your library when you choose.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>OmniFit needs photo access so you can pick meal and body photos from your library.</string>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
@@ -43,12 +68,6 @@
 		<string>UIInterfaceOrientationPortrait</string>
 		<string>UIInterfaceOrientationPortraitUpsideDown</string>
 	</array>
-	<key>NSCameraUsageDescription</key>
-	<string>OmniFit needs the camera to photograph meals and body progress shots.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>OmniFit needs photo access so you can pick meal and body photos from your library.</string>
-	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>OmniFit may save progress photos you take to your library when you choose.</string>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
 </dict>

@@ -502,6 +502,131 @@ const FOODS = [
   { id: "steak", name: "Sirloin (6 oz)", cal: 348, p: 50, c: 0, f: 16, meal: "dinner" }
 ];
 
+
+const RESTAURANT_FOODS = [
+  // McDonald's
+  { id: "mcd-big-mac", name: "McDonald's Big Mac", cal: 590, p: 25, c: 46, f: 34 },
+  { id: "mcd-qp-cheese", name: "McDonald's Quarter Pounder with Cheese", cal: 520, p: 30, c: 42, f: 26 },
+  { id: "mcd-mcchicken", name: "McDonald's McChicken", cal: 400, p: 14, c: 40, f: 21 },
+  { id: "mcd-nuggets-10", name: "McDonald's Chicken McNuggets (10 piece)", cal: 410, p: 24, c: 26, f: 24 },
+  { id: "mcd-nuggets-6", name: "McDonald's Chicken McNuggets (6 piece)", cal: 250, p: 14, c: 15, f: 15 },
+  { id: "mcd-fries-med", name: "McDonald's Medium Fries", cal: 320, p: 5, c: 43, f: 15 },
+  { id: "mcd-fries-large", name: "McDonald's Large Fries", cal: 480, p: 7, c: 64, f: 23 },
+  { id: "mcd-egg-mcmuffin", name: "McDonald's Egg McMuffin", cal: 310, p: 17, c: 30, f: 13 },
+  { id: "mcd-filet", name: "McDonald's Filet-O-Fish", cal: 380, p: 16, c: 39, f: 18 },
+  { id: "mcd-hashbrown", name: "McDonald's Hash Browns", cal: 140, p: 1, c: 18, f: 8 },
+  { id: "mcd-sausage-biscuit", name: "McDonald's Sausage Biscuit", cal: 460, p: 12, c: 37, f: 30 },
+  { id: "mcd-double-cheeseburger", name: "McDonald's Double Cheeseburger", cal: 450, p: 25, c: 34, f: 24 },
+  { id: "mcd-mcdouble", name: "McDonald's McDouble", cal: 400, p: 22, c: 33, f: 20 },
+  { id: "mcd-apple-pie", name: "McDonald's Baked Apple Pie", cal: 230, p: 2, c: 33, f: 11 },
+
+  // Chipotle
+  { id: "chip-burrito-chicken", name: "Chipotle Chicken Burrito", cal: 1030, p: 54, c: 101, f: 44 },
+  { id: "chip-bowl-chicken", name: "Chipotle Chicken Bowl", cal: 630, p: 46, c: 56, f: 24 },
+  { id: "chip-bowl-steak", name: "Chipotle Steak Bowl", cal: 620, p: 48, c: 53, f: 24 },
+  { id: "chip-sofritas-bowl", name: "Chipotle Sofritas Bowl", cal: 580, p: 26, c: 67, f: 24 },
+  { id: "chip-chips-guac", name: "Chipotle Chips and Guacamole", cal: 770, p: 10, c: 71, f: 52 },
+  { id: "chip-taco-chicken", name: "Chipotle Chicken Soft Taco", cal: 210, p: 15, c: 18, f: 9 },
+
+  // Taco Bell
+  { id: "tb-crunchy-taco", name: "Taco Bell Crunchy Taco", cal: 170, p: 8, c: 13, f: 10 },
+  { id: "tb-soft-taco", name: "Taco Bell Soft Taco", cal: 180, p: 9, c: 18, f: 8 },
+  { id: "tb-bean-burrito", name: "Taco Bell Bean Burrito", cal: 380, p: 13, c: 55, f: 11 },
+  { id: "tb-chalupa-supreme", name: "Taco Bell Chalupa Supreme", cal: 350, p: 13, c: 30, f: 20 },
+  { id: "tb-crunchwrap", name: "Taco Bell Crunchwrap Supreme", cal: 530, p: 16, c: 54, f: 28 },
+  { id: "tb-quesadilla-chicken", name: "Taco Bell Chicken Quesadilla", cal: 520, p: 27, c: 38, f: 28 },
+  { id: "tb-nacho-fries", name: "Taco Bell Nacho Fries", cal: 320, p: 4, c: 34, f: 19 },
+
+  // Starbucks
+  { id: "sbux-latte-grande", name: "Starbucks Caffe Latte Grande", cal: 190, p: 13, c: 18, f: 7 },
+  { id: "sbux-americano-grande", name: "Starbucks Americano Grande", cal: 15, p: 1, c: 2, f: 0 },
+  { id: "sbux-cold-brew-grande", name: "Starbucks Cold Brew Grande", cal: 5, p: 0, c: 0, f: 0 },
+  { id: "sbux-pumpkin-loaf", name: "Starbucks Pumpkin Bread", cal: 410, p: 6, c: 61, f: 16 },
+  { id: "sbux-bacon-gouda", name: "Starbucks Bacon Gouda Sandwich", cal: 360, p: 18, c: 34, f: 17 },
+  { id: "sbux-egg-bites", name: "Starbucks Egg White Bites", cal: 170, p: 13, c: 11, f: 8 },
+  { id: "sbux-frap-mocha", name: "Starbucks Mocha Frappuccino Grande", cal: 370, p: 5, c: 54, f: 15 },
+
+  // Subway
+  { id: "sub-turkey-6", name: "Subway Turkey Breast 6-inch", cal: 280, p: 18, c: 46, f: 3.5 },
+  { id: "sub-italian-bmt-6", name: "Subway Italian B.M.T. 6-inch", cal: 410, p: 20, c: 44, f: 18 },
+  { id: "sub-meatball-6", name: "Subway Meatball Marinara 6-inch", cal: 480, p: 21, c: 54, f: 20 },
+  { id: "sub-tuna-6", name: "Subway Tuna 6-inch", cal: 480, p: 20, c: 44, f: 25 },
+  { id: "sub-oven-chicken-6", name: "Subway Oven Roasted Chicken 6-inch", cal: 320, p: 23, c: 47, f: 5 },
+
+  // Wendy's
+  { id: "wen-dave-single", name: "Wendy's Dave's Single", cal: 590, p: 30, c: 39, f: 34 },
+  { id: "wen-dave-double", name: "Wendy's Dave's Double", cal: 870, p: 51, c: 40, f: 54 },
+  { id: "wen-spicy-chicken", name: "Wendy's Spicy Chicken Sandwich", cal: 510, p: 29, c: 43, f: 24 },
+  { id: "wen-nuggets-10", name: "Wendy's Chicken Nuggets (10 piece)", cal: 420, p: 25, c: 21, f: 26 },
+  { id: "wen-fries-med", name: "Wendy's Medium Fries", cal: 350, p: 5, c: 47, f: 16 },
+  { id: "wen-chili", name: "Wendy's Chili Large", cal: 330, p: 25, c: 30, f: 12 },
+
+  // Chick-fil-A
+  { id: "cfa-sandwich", name: "Chick-fil-A Chicken Sandwich", cal: 440, p: 29, c: 40, f: 18 },
+  { id: "cfa-spicy", name: "Chick-fil-A Spicy Chicken Sandwich", cal: 460, p: 29, c: 41, f: 20 },
+  { id: "cfa-nuggets-8", name: "Chick-fil-A Nuggets (8 count)", cal: 250, p: 27, c: 11, f: 11 },
+  { id: "cfa-nuggets-12", name: "Chick-fil-A Nuggets (12 count)", cal: 380, p: 40, c: 16, f: 16 },
+  { id: "cfa-waffle-fries-med", name: "Chick-fil-A Medium Waffle Fries", cal: 420, p: 5, c: 45, f: 24 },
+  { id: "cfa-egg-white-grill", name: "Chick-fil-A Egg White Grill", cal: 290, p: 26, c: 31, f: 7 },
+  { id: "cfa-cobb", name: "Chick-fil-A Cobb Salad", cal: 510, p: 42, c: 26, f: 27 },
+
+  // In-N-Out
+  { id: "ino-double-double", name: "In-N-Out Double-Double", cal: 670, p: 37, c: 41, f: 41 },
+  { id: "ino-cheeseburger", name: "In-N-Out Cheeseburger", cal: 480, p: 22, c: 39, f: 27 },
+  { id: "ino-hamburger", name: "In-N-Out Hamburger", cal: 390, p: 16, c: 41, f: 19 },
+  { id: "ino-fries", name: "In-N-Out Fries", cal: 370, p: 5, c: 54, f: 15 },
+  { id: "ino-protein-style", name: "In-N-Out Double-Double Protein Style", cal: 520, p: 33, c: 11, f: 39 },
+
+  // Burger King
+  { id: "bk-whopper", name: "Burger King Whopper", cal: 670, p: 31, c: 51, f: 39 },
+  { id: "bk-whopper-jr", name: "Burger King Whopper Jr", cal: 310, p: 14, c: 27, f: 17 },
+  { id: "bk-chicken-fries", name: "Burger King Chicken Fries (8 piece)", cal: 280, p: 13, c: 20, f: 17 },
+  { id: "bk-fries-med", name: "Burger King Medium Fries", cal: 370, p: 4, c: 47, f: 18 },
+  { id: "bk-original-chicken", name: "Burger King Original Chicken Sandwich", cal: 680, p: 25, c: 55, f: 41 },
+
+  // Pizza Hut / Domino's (per slice)
+  { id: "ph-pepperoni-slice", name: "Pizza Hut Pepperoni Pan Pizza Slice", cal: 330, p: 13, c: 31, f: 17 },
+  { id: "ph-cheese-slice", name: "Pizza Hut Cheese Pan Pizza Slice", cal: 300, p: 12, c: 31, f: 14 },
+  { id: "dom-pepperoni-slice", name: "Domino's Pepperoni Pizza Slice (hand tossed)", cal: 300, p: 12, c: 34, f: 13 },
+  { id: "dom-cheese-slice", name: "Domino's Cheese Pizza Slice (hand tossed)", cal: 280, p: 11, c: 35, f: 11 },
+  { id: "dom-philly", name: "Domino's Philly Cheese Steak Sandwich", cal: 720, p: 37, c: 57, f: 37 },
+
+  // Panera
+  { id: "pan-broccoli-cheddar", name: "Panera Broccoli Cheddar Soup Bowl", cal: 360, p: 13, c: 30, f: 21 },
+  { id: "pan-chipotle-chicken", name: "Panera Chipotle Chicken Avocado Melt", cal: 750, p: 43, c: 64, f: 36 },
+  { id: "pan-fuji-apple", name: "Panera Fuji Apple Salad with Chicken", cal: 560, p: 32, c: 45, f: 29 },
+  { id: "pan-bagel-cc", name: "Panera Bagel with Cream Cheese", cal: 400, p: 12, c: 61, f: 12 },
+  { id: "pan-mac", name: "Panera Mac and Cheese Bowl", cal: 970, p: 35, c: 86, f: 54 },
+// Extra common restaurant items (1.0.91)
+  { id: "chip-burrito-steak", name: "Chipotle Steak Burrito", cal: 1020, p: 56, c: 98, f: 43 },
+  { id: "chip-burrito-carnitas", name: "Chipotle Carnitas Burrito", cal: 1070, p: 52, c: 101, f: 48 },
+  { id: "chip-burrito-bowl", name: "Chipotle Burrito Bowl (chicken)", cal: 630, p: 46, c: 56, f: 24 },
+  { id: "chip-veggie-bowl", name: "Chipotle Veggie Bowl", cal: 530, p: 18, c: 72, f: 20 },
+  { id: "chip-quesadilla-chicken", name: "Chipotle Chicken Quesadilla", cal: 880, p: 50, c: 55, f: 49 },
+  { id: "sbux-latte-venti", name: "Starbucks Caffe Latte Venti", cal: 250, p: 16, c: 24, f: 9 },
+  { id: "sbux-capp-grande", name: "Starbucks Cappuccino Grande", cal: 140, p: 9, c: 14, f: 5 },
+  { id: "sbux-caramel-macchiato-grande", name: "Starbucks Caramel Macchiato Grande", cal: 250, p: 10, c: 35, f: 7 },
+  { id: "sbux-turkey-bacon", name: "Starbucks Turkey Bacon Sandwich", cal: 230, p: 17, c: 28, f: 5 },
+  { id: "sbux-impossible", name: "Starbucks Impossible Breakfast Sandwich", cal: 420, p: 21, c: 40, f: 20 },
+  { id: "tb-beefy-5", name: "Taco Bell Beefy 5-Layer Burrito", cal: 500, p: 19, c: 53, f: 23 },
+  { id: "tb-doritos-loco", name: "Taco Bell Doritos Locos Taco", cal: 170, p: 8, c: 13, f: 10 },
+  { id: "tb-power-bowl", name: "Taco Bell Cantina Chicken Bowl", cal: 470, p: 26, c: 51, f: 18 },
+  { id: "sub-club-6", name: "Subway Club 6-inch", cal: 310, p: 23, c: 46, f: 4.5 },
+  { id: "sub-spicy-italian-6", name: "Subway Spicy Italian 6-inch", cal: 480, p: 20, c: 44, f: 25 },
+  { id: "pan-broccoli-cheddar-cup", name: "Panera Broccoli Cheddar Soup Cup", cal: 230, p: 8, c: 18, f: 14 },
+  { id: "pan-chicken-noodle-cup", name: "Panera Homestyle Chicken Noodle Soup Cup", cal: 120, p: 9, c: 15, f: 2.5 },
+  { id: "pan-turkey-sandwich", name: "Panera Turkey Sandwich", cal: 500, p: 32, c: 52, f: 17 },
+  { id: "mcd-spicy-crispy", name: "McDonald's Spicy Crispy Chicken Sandwich", cal: 530, p: 27, c: 48, f: 26 },
+  { id: "mcd-sausage-mcmuffin", name: "McDonald's Sausage McMuffin", cal: 400, p: 14, c: 29, f: 25 },
+  { id: "cfa-grilled-sandwich", name: "Chick-fil-A Grilled Chicken Sandwich", cal: 390, p: 37, c: 44, f: 6 },
+  { id: "cfa-nuggets-8-grilled", name: "Chick-fil-A Grilled Nuggets (8 count)", cal: 130, p: 25, c: 1, f: 3 },
+  { id: "wen-baconator", name: "Wendy's Baconator", cal: 950, p: 57, c: 41, f: 63 },
+  { id: "bk-impossible", name: "Burger King Impossible Whopper", cal: 630, p: 25, c: 58, f: 34 },
+  { id: "dunk-bacon-egg-cheese", name: "Dunkin Bacon Egg and Cheese Sandwich", cal: 470, p: 19, c: 41, f: 26 },
+  { id: "dunk-medium-latte", name: "Dunkin Medium Latte", cal: 150, p: 9, c: 16, f: 5 },
+];
+
+
 const MEAL_ORDER = ["breakfast", "lunch", "dinner", "snack"];
 const MEAL_LABEL = {
   breakfast: "Breakfast",
