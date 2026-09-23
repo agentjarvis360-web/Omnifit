@@ -237,11 +237,17 @@
   function appConfig() {
     if (typeof window !== "undefined" && window.OmniFitConfig) return window.OmniFitConfig;
     if (typeof OmniFitConfig !== "undefined") return OmniFitConfig;
+    // config.js sets window.OMNIFIT — that is the live client config
+    if (typeof window !== "undefined" && window.OMNIFIT) return window.OMNIFIT;
     return {};
   }
 
   function scanApiBase() {
-    const base = (appConfig().scanApiBase || "").trim().replace(/\/+$/, "");
+    const cfg = appConfig();
+    let base = (cfg.scanApiBase || "").trim().replace(/\/+$/, "");
+    if (!base && typeof window !== "undefined" && window.OMNIFIT) {
+      base = String(window.OMNIFIT.scanApiBase || "").trim().replace(/\/+$/, "");
+    }
     return base;
   }
 
@@ -281,7 +287,15 @@
     const q = (query || "").trim();
     const catalog = foodCatalog();
     if (!q) return catalog.slice(0, 40);
-    return catalog.filter((f) => tokensMatch(f.name, q));
+    const andHits = catalog.filter((f) => tokensMatch(f.name, q));
+    if (andHits.length) return andHits;
+    // Fallback: any token (3+ chars) so short typos / partials still surface foods
+    const tokens = normalizeFoodName(q).split(" ").filter((tok) => tok.length >= 3);
+    if (!tokens.length) return [];
+    return catalog.filter((f) => {
+      const n = normalizeFoodName(f.name);
+      return tokens.some((tok) => n.includes(tok));
+    });
   }
 
   function mergeFoodResults(local, remote) {
@@ -319,7 +333,7 @@
     const statusEl = document.getElementById("food-search-status");
     if (statusEl) statusEl.textContent = "Searching…";
     const ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
-    const timer = setTimeout(() => ctrl && ctrl.abort(), 10000);
+    const timer = setTimeout(() => ctrl && ctrl.abort(), 45000);
     try {
       const url = base + "/api/search-food?q=" + encodeURIComponent(query);
       const res = await fetch(url, { method: "GET", signal: ctrl ? ctrl.signal : undefined });
@@ -352,10 +366,10 @@
       clearTimeout(timer);
       if (seq !== foodSearchSeq) return;
       foodSearchStatus = "error";
-      lastRemoteFoods = [];
-      lastRemoteQuery = "";
+      // Keep any prior remote hits; still show local matches on next render.
       const el = document.getElementById("food-search-status");
       if (el) el.textContent = "Online search unavailable — showing local foods";
+      if (view === "food") render();
     }
   }
 
