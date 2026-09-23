@@ -464,18 +464,20 @@ def search_foods(q):
         if added and source not in sources:
             sources.append(source)
 
-    # Order: FDC → Open Food Facts → estimate fill (max 15).
-    # For restaurant-like queries, leave room so est: results are not crowded out by grocery OFF hits.
-    add_all(search_fdc(q, limit=8), "fdc")
+    # Order: FDC first; for restaurant-like queries estimate BEFORE Open Food Facts
+    # so grocery OFF hits do not burn the request budget and crowd out menu items.
+    add_all(search_fdc(q, limit=6 if restaurant else 8), "fdc")
     if restaurant:
-        off_budget = min(5, max(0, 9 - len(results)))
+        add_all(search_estimate(q, limit=6), "estimate")
+        off_budget = min(4, max(0, 15 - len(results)))
+        if off_budget:
+            add_all(search_open_food_facts(q, limit=off_budget), "off")
     else:
         off_budget = max(0, 15 - len(results))
-    if off_budget:
-        add_all(search_open_food_facts(q, limit=off_budget), "off")
-    need_estimate = len(results) < 5 or restaurant
-    if need_estimate and len(results) < 15:
-        add_all(search_estimate(q, limit=min(6, 15 - len(results))), "estimate")
+        if off_budget:
+            add_all(search_open_food_facts(q, limit=off_budget), "off")
+        if len(results) < 5:
+            add_all(search_estimate(q, limit=min(6, 15 - len(results))), "estimate")
     return results[:15], sources
 
 
