@@ -10,6 +10,10 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+import threading
+import time
+from collections import OrderedDict
+from concurrent.futures import ThreadPoolExecutor, wait
 
 try:
     import certifi
@@ -22,6 +26,10 @@ ROOT = Path(__file__).resolve().parent
 PORT = int(os.environ.get("PORT") or (sys.argv[1] if len(sys.argv) > 1 else 8787))
 XAI_URL = "https://api.x.ai/v1/chat/completions"
 MODEL = os.environ.get("XAI_MODEL", "grok-4.6")
+# grok-4.6 defaults to reasoning_effort "high" (~60s+ per photo). Scan/estimate are simple
+# extraction tasks, so ask for low effort. Set XAI_REASONING_EFFORT="" to send nothing.
+REASONING_EFFORT = os.environ.get("XAI_REASONING_EFFORT", "low").strip()
+ESTIMATE_MODEL = os.environ.get("XAI_ESTIMATE_MODEL", MODEL)
 MAX_BODY = 8 * 1024 * 1024
 # Comma-separated origins, or * for any (dev only). Default allows Capacitor + local.
 CORS_ORIGINS = [
@@ -135,12 +143,67 @@ def normalize(data):
     }
 
 
-SEARCH_TIMEOUT = 10
+SEARCH_TIMEOUT = 4  # per-source HTTP timeout (sources run in parallel)
+SEARCH_BUDGET = float(os.environ.get("FOOD_SEARCH_BUDGET", "4.5"))  # wall-clock cap for FDC/OFF
+ESTIMATE_TIMEOUT = float(os.environ.get("FOOD_ESTIMATE_TIMEOUT", "8"))
+FDC_API_BASE = (os.environ.get("FDC_API_BASE") or "https://api.nal.usda.gov/fdc/v1").rstrip("/")
 OFF_USER_AGENT = "OmniFitFoodSearch/1.0 (+https://omnifit.app)"
 SSL_CTX = ssl.create_default_context()
+SEARCH_POOL = ThreadPoolExecutor(max_workers=16)
+
+# ---------------------------------------------------------------------------
+# Domain type. Every source is normalized into this shape before ranking:
+# FoodResult = {
+#   id, name, brand, source ("fdc"|"off"|"curated"|"estimate"), dataType,
+#   servingLabel, servingGrams, kcalPerServing, kcalPer100g,
+#   protein, carbs, fat           (grams per serving)
+#   cal, p, c, f                  (= per-serving values; kept for existing clients)
+#   score                         (relevance, higher is better)
+# }
+# ---------------------------------------------------------------------------
+GENERIC_TYPES = ("Foundation", "SR Legacy", "Survey (FNDDS)")
+
+
+def food_result(id, name, source, kcal100=None, p100=None, c100=None, f100=None, serving_grams=None,
+                serving_label="", brand="", data_type="", kcal_serving=None, p=None, c=None, f=None):
+    """Build a FoodResult. Give per-100g values (+ serving grams) or explicit per-serving values."""
+    per100 = kcal100 is not None
+    if per100:
+        g = serving_grams if serving_grams and serving_grams > 0 else 100.0
+        factor = g / 100.0
+        kcal_serving = kcal100 * factor
+        p, c, f = (num(p100) * factor, num(c100) * factor, num(f100) * factor)
+        if not serving_label:
+            serving_label = "100 g"
+        serving_grams = g
+    kcal_serving = num(kcal_serving)
+    if kcal_serving <= 0 and num(p) <= 0 and num(c) <= 0 and num(f) <= 0:
+        return None
+    out = {
+        "id": id,
+        "name": str(name)[:120],
+        "brand": str(brand or "")[:80],
+        "source": source,
+        "dataType": data_type,
+        "servingLabel": serving_label or "1 serving",
+        "servingGrams": round(serving_grams, 1) if serving_grams else None,
+        "kcalPerServing": int(round(kcal_serving)),
+        "kcalPer100g": int(round(kcal100)) if per100 else None,
+        "protein": int(round(num(p))),
+        "carbs": int(round(num(c))),
+        "fat": int(round(num(f))),
+        "score": 0.0,
+    }
+    out.update(cal=out["kcalPerServing"], p=out["protein"], c=out["carbs"], f=out["fat"])
+    return out
+
+
+class SourceError(Exception):
+    pass
+
 
 def fdc_api_key():
-    # USDA FoodData Central: use real key if set, else DEMO_KEY (rate-limited but works).
+    # USDA FoodData Central: use real key if set, else DEMO_KEY (rate-limited: ~30 req/h per IP).
     return (os.environ.get("FDC_API_KEY") or "DEMO_KEY").strip()
 
 
@@ -150,67 +213,41 @@ def http_get_json(url, headers=None, timeout=SEARCH_TIMEOUT):
         headers=headers or {"User-Agent": OFF_USER_AGENT, "Accept": "application/json"},
         method="GET",
     )
-    with urllib.request.urlopen(req, timeout=timeout, context=SSL_CTX) as resp:
-        return json.loads(resp.read().decode("utf-8"))
-
-
-def kcal_from_off_nutrients(nutriments, product=None):
-    """Prefer energy-kcal; fall back to kJ."""
-    if not isinstance(nutriments, dict):
-        nutriments = {}
-    for key in (
-        "energy-kcal_serving",
-        "energy-kcal",
-        "energy-kcal_100g",
-        "energy-kcal_value",
-    ):
-        if key in nutriments and nutriments[key] not in (None, ""):
-            return num(nutriments[key])
-    for key in ("energy_serving", "energy", "energy_100g"):
-        if key in nutriments and nutriments[key] not in (None, ""):
-            # assume kJ if large
-            v = num(nutriments[key])
-            if v > 200:  # likely kJ
-                return v / 4.184
-            return v
-    return 0
-
-
-def macro_from_off(nutriments, kind):
-    for key in (f"{kind}_serving", kind, f"{kind}_100g"):
-        if key in nutriments and nutriments[key] not in (None, ""):
-            return num(nutriments[key])
-    return 0
+    try:
+        with urllib.request.urlopen(req, timeout=timeout, context=SSL_CTX) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        raise SourceError("rate_limited" if e.code == 429 else "http_%s" % e.code)
+    except (TimeoutError, OSError) as e:
+        if "timed out" in str(e).lower() or isinstance(e, TimeoutError):
+            raise SourceError("timeout")
+        raise SourceError("network")
 
 
 def off_product_to_food(product):
+    """Open Food Facts nutriments are per 100 g; serving_quantity is grams when present."""
     if not isinstance(product, dict):
         return None
-    name_bits = [
-        product.get("brands") or product.get("brand") or "",
-        product.get("product_name") or product.get("product_name_en") or "",
-    ]
-    name = " ".join(str(b).strip() for b in name_bits if b).strip()
-    if not name:
-        name = str(product.get("generic_name") or "").strip()
-    if not name:
+    brand = str(product.get("brands") or "").split(",")[0].strip()
+    pname = str(product.get("product_name_en") or product.get("product_name") or product.get("generic_name") or "").strip()
+    if not pname:
         return None
-    nutriments = product.get("nutriments") or {}
-    cal = kcal_from_off_nutrients(nutriments, product)
-    p = macro_from_off(nutriments, "proteins")
-    c = macro_from_off(nutriments, "carbohydrates")
-    f = macro_from_off(nutriments, "fat")
-    if cal <= 0 and p <= 0 and c <= 0 and f <= 0:
+    n = product.get("nutriments") or {}
+    kcal100 = num(n.get("energy-kcal_100g"), None)
+    if kcal100 is None and n.get("energy_100g") not in (None, ""):
+        kcal100 = num(n.get("energy_100g")) / 4.184  # energy_100g is kJ
+    if kcal100 is None:
         return None
-    code = product.get("code") or product.get("_id") or name
-    return {
-        "id": "off:" + str(code),
-        "name": name[:120],
-        "cal": int(round(cal)),
-        "p": int(round(p)),
-        "c": int(round(c)),
-        "f": int(round(f)),
-    }
+    grams = num(product.get("serving_quantity"), 0)
+    label = str(product.get("serving_size") or "").strip()[:40]
+    if grams <= 0 or grams > 2000:
+        grams, label = 100.0, "100 g"
+    code = product.get("code") or pname
+    return food_result(
+        "off:" + str(code), (brand + " " + pname).strip() if brand and brand.lower() not in pname.lower() else pname,
+        "off", kcal100, n.get("proteins_100g"), n.get("carbohydrates_100g"), n.get("fat_100g"),
+        grams, label or "%g g" % grams, brand=brand, data_type="Open Food Facts",
+    )
 
 
 def search_open_food_facts(q, limit=10):
@@ -221,23 +258,10 @@ def search_open_food_facts(q, limit=10):
             "action": "process",
             "json": 1,
             "page_size": max(limit, 15),
-            "fields": "code,product_name,product_name_en,brands,generic_name,nutriments",
+            "fields": "code,product_name,product_name_en,brands,generic_name,nutriments,serving_size,serving_quantity",
         }
     )
-    url = "https://world.openfoodfacts.org/cgi/search.pl?" + params
-    data = None
-    last_err = None
-    for attempt in range(2):
-        try:
-            data = http_get_json(url, timeout=SEARCH_TIMEOUT + (attempt * 4))
-            break
-        except Exception as e:
-            last_err = e
-            sys.stderr.write("off_search try%s %s: %s\n" % (attempt + 1, type(e).__name__, e))
-    if data is None:
-        if last_err:
-            sys.stderr.write("off_search failed: %s\n" % last_err)
-        return []
+    data = http_get_json("https://world.openfoodfacts.org/cgi/search.pl?" + params)  # one try, short timeout
     foods = []
     for product in data.get("products") or []:
         item = off_product_to_food(product)
@@ -281,53 +305,81 @@ def fdc_energy_kcal(food):
     return 0
 
 
-def search_fdc(q, limit=10):
+GOOD_PORTION_WORDS = ("medium", "large", "breast", "piece", "slice", "cup", "tbsp", "oz", "egg", "fillet", "patty", "item")
+
+
+def fdc_serving(food, q_tokens):
+    """(grams, label). Branded: label serving size. Generic: a sensible household portion, else 100 g."""
+    if food.get("dataType") == "Branded":
+        size = num(food.get("servingSize"), 0)
+        unit = str(food.get("servingSizeUnit") or "").lower()
+        if size > 0 and unit in ("g", "grm", "gm", "ml", "mlt"):
+            hh = str(food.get("householdServingFullText") or "").strip()
+            label = ("%s (%g %s)" % (hh, size, "ml" if unit.startswith("ml") else "g")) if hh else "%g g" % size
+            return size, label[:40]
+        return 100.0, "100 g"
+    measures = []
+    for m in (food.get("foodMeasures") or food.get("foodPortions") or []):
+        if not isinstance(m, dict):
+            continue
+        g = num(m.get("gramWeight"), 0)
+        text = str(m.get("disseminationText") or m.get("portionDescription") or m.get("modifier") or "").strip()
+        if g <= 0 or g > 1500 or not text or "quantity not specified" in text.lower() or "racc" in text.lower() or text.lower() == "undetermined":
+            continue
+        tl = text.lower()
+        pref = 0
+        if " ".join(q_tokens) in tl or any(t in tl for t in q_tokens if len(t) > 3):
+            pref -= 3
+        if "yield" in tl or "fl oz" in tl:
+            pref += 2
+        if "medium" in tl:
+            pref -= 2
+        if any(w in tl for w in GOOD_PORTION_WORDS):
+            pref -= 1
+        measures.append((pref, num(m.get("rank"), 99), g, text))
+    if measures:
+        measures.sort(key=lambda x: (x[0], x[1]))
+        _, _, g, text = measures[0]
+        return g, ("%s (%g g)" % (text, round(g)))[:48]
+    return 100.0, "100 g"
+
+
+def search_fdc(q, limit=10, data_types="Foundation,SR Legacy,Survey (FNDDS)"):
     key = fdc_api_key()
     if not key:
         return []
     params = urllib.parse.urlencode(
-        {
-            "query": q,
-            "pageSize": limit,
-            "dataType": "Branded,Foundation,SR Legacy",
-            "api_key": key,
-        }
+        {"query": q, "pageSize": limit, "dataType": data_types, "api_key": key}
     )
-    url = "https://api.nal.usda.gov/fdc/v1/foods/search?" + params
-    try:
-        data = http_get_json(url)
-    except Exception as e:
-        sys.stderr.write("fdc_search %s: %s\n" % (type(e).__name__, e))
-        return []
+    data = http_get_json(FDC_API_BASE + "/foods/search?" + params)
+    q_tokens = query_tokens(q)
     foods = []
     for food in data.get("foods") or []:
         desc = str(food.get("description") or "").strip()
-        brand = str(food.get("brandOwner") or food.get("brandName") or "").strip()
-        name = (brand + " " + desc).strip() if brand else desc
-        if not name:
+        if not desc:
             continue
+        brand = str(food.get("brandName") or food.get("brandOwner") or "").strip() if food.get("dataType") == "Branded" else ""
         nutrients = {
             n.get("nutrientName"): n.get("value")
             for n in (food.get("foodNutrients") or [])
             if isinstance(n, dict)
         }
-        cal = fdc_energy_kcal(food)
-        p = num(nutrients.get("Protein"))
-        c = num(nutrients.get("Carbohydrate, by difference"))
-        f = num(nutrients.get("Total lipid (fat)"))
-        if cal <= 0 and p <= 0 and c <= 0 and f <= 0:
-            continue
-        fdc_id = food.get("fdcId") or name
-        foods.append(
-            {
-                "id": "fdc:" + str(fdc_id),
-                "name": name[:120],
-                "cal": int(round(cal)),
-                "p": int(round(p)),
-                "c": int(round(c)),
-                "f": int(round(f)),
-            }
+        grams, label = fdc_serving(food, q_tokens)
+        item = food_result(
+            "fdc:" + str(food.get("fdcId") or desc),
+            (brand.title() + " " + desc.capitalize()) if brand else desc,
+            "fdc",
+            fdc_energy_kcal(food),  # FDC search nutrients are per 100 g (branded too)
+            nutrients.get("Protein"),
+            nutrients.get("Carbohydrate, by difference"),
+            nutrients.get("Total lipid (fat)"),
+            grams,
+            label,
+            brand=brand,
+            data_type=str(food.get("dataType") or ""),
         )
+        if item:
+            foods.append(item)
         if len(foods) >= limit:
             break
     return foods
@@ -365,6 +417,11 @@ def query_looks_restaurant(q):
     return False
 
 
+def query_names_chain(q):
+    ql = re.sub(r"[^a-z0-9\s-]+", "", (q or "").lower())
+    return any(h in ql for h in RESTAURANT_HINTS)
+
+
 def slugify_est(name):
     s = re.sub(r"[^a-z0-9]+", "-", (name or "").lower()).strip("-")
     return (s or "food")[:60]
@@ -375,9 +432,9 @@ def slugify_est(name):
 # and estimate is slow or rate-limited — keeps restaurant searches useful.
 CURATED_RESTAURANT = [
     {"id": "cur:chip-burrito-chicken", "name": "Chipotle Chicken Burrito", "cal": 1030, "p": 54, "c": 101, "f": 44},
-    {"id": "cur:chip-bowl-chicken", "name": "Chipotle Chicken Bowl", "cal": 630, "p": 46, "c": 56, "f": 24},
-    {"id": "cur:chip-bowl-steak", "name": "Chipotle Steak Bowl", "cal": 620, "p": 48, "c": 53, "f": 24},
-    {"id": "cur:chip-sofritas-bowl", "name": "Chipotle Sofritas Bowl", "cal": 580, "p": 26, "c": 67, "f": 24},
+    {"id": "cur:chip-bowl-chicken", "name": "Chipotle Chicken Burrito Bowl", "cal": 630, "p": 46, "c": 56, "f": 24},
+    {"id": "cur:chip-bowl-steak", "name": "Chipotle Steak Burrito Bowl", "cal": 620, "p": 48, "c": 53, "f": 24},
+    {"id": "cur:chip-sofritas-bowl", "name": "Chipotle Sofritas Burrito Bowl", "cal": 580, "p": 26, "c": 67, "f": 24},
     {"id": "cur:chip-chips-guac", "name": "Chipotle Chips and Guacamole", "cal": 770, "p": 10, "c": 71, "f": 52},
     {"id": "cur:mcd-big-mac", "name": "McDonald's Big Mac", "cal": 590, "p": 25, "c": 46, "f": 34},
     {"id": "cur:mcd-qp", "name": "McDonald's Quarter Pounder with Cheese", "cal": 520, "p": 30, "c": 42, "f": 26},
@@ -394,34 +451,34 @@ CURATED_RESTAURANT = [
 
 
 def search_curated_restaurant(q, limit=8):
-    tokens = re.sub(r"[^a-z0-9]+", " ", (q or "").lower()).split()
-    tokens = [t for t in tokens if t]
+    """Curated menu items as FoodResults (1 item servings). The ranker decides placement."""
+    tokens = query_tokens(q)
     if not tokens:
         return []
-    scored = []
+    out = []
     for it in CURATED_RESTAURANT:
-        name = (it.get("name") or "").lower()
-        if all(t in name for t in tokens):
-            scored.append((0, it))
-        elif sum(1 for t in tokens if t in name) >= max(1, len(tokens) - 1):
-            scored.append((1, it))
-    scored.sort(key=lambda x: x[0])
-    return [it for _, it in scored[:limit]]
+        words = name_words(it["name"])
+        hits = sum(1 for t in tokens if token_hit(t, words))
+        if hits >= max(1, len(tokens) - 1):
+            out.append(food_result(it["id"], it["name"], "curated", serving_label="1 item",
+                                   data_type="Restaurant", kcal_serving=it["cal"], p=it["p"], c=it["c"], f=it["f"]))
+    return out[:limit]
 
 
-def search_estimate(q, limit=6):
-    """Grok estimate fill for restaurant-like / thin FDC+OFF results. ids: est:<slug>."""
+def search_estimate(q, limit=6, timeout=ESTIMATE_TIMEOUT):
+    """Grok estimate fill when real sources came back thin. ids: est:<slug>."""
     key = api_key()
     if not key:
         return []
     prompt = (
-        "You estimate typical US restaurant/menu nutrition. Query: %r\n"
+        "You estimate typical US nutrition for a food search. Query: %r\n"
         "Return JSON only: {\"foods\":[{\"name\":\"Brand Item\",\"cal\":0,\"p\":0,\"c\":0,\"f\":0,\"portion\":\"typical serving\"}]}\n"
         "Up to %d plausible matches for what the user likely wants. Use published-ish brand names when clear "
-        "(e.g. Chipotle Chicken Burrito). cal=kcal integers; p/c/f grams integers. No markdown."
+        "(e.g. Chipotle Chicken Burrito); otherwise a plain generic food. cal=kcal per portion, integers; "
+        "p/c/f grams integers. No markdown."
     ) % (q, limit)
     req_body = {
-        "model": MODEL,
+        "model": ESTIMATE_MODEL,
         "temperature": 0,
         "max_tokens": 700,
         "response_format": {"type": "json_object"},
@@ -433,6 +490,8 @@ def search_estimate(q, limit=6):
             {"role": "user", "content": prompt},
         ],
     }
+    if REASONING_EFFORT:
+        req_body["reasoning_effort"] = REASONING_EFFORT
     req = urllib.request.Request(
         XAI_URL,
         data=json.dumps(req_body).encode("utf-8"),
@@ -443,7 +502,7 @@ def search_estimate(q, limit=6):
         method="POST",
     )
     try:
-        with urllib.request.urlopen(req, timeout=25, context=SSL_CTX) as resp:
+        with urllib.request.urlopen(req, timeout=timeout, context=SSL_CTX) as resp:
             raw = json.loads(resp.read().decode("utf-8"))
         content = raw["choices"][0]["message"]["content"]
         if isinstance(content, list):
@@ -453,7 +512,7 @@ def search_estimate(q, limit=6):
         data = extract_json(content)
     except Exception as e:
         sys.stderr.write("estimate_search %s: %s\n" % (type(e).__name__, e))
-        return []
+        raise SourceError("timeout" if "timed out" in str(e).lower() else "failed")
     foods = []
     for it in data.get("foods") or []:
         if not isinstance(it, dict):
@@ -461,67 +520,238 @@ def search_estimate(q, limit=6):
         name = str(it.get("name") or "").strip()
         if not name:
             continue
-        cal = int(round(num(it.get("cal"))))
-        p = int(round(num(it.get("p"))))
-        c = int(round(num(it.get("c"))))
-        f = int(round(num(it.get("f"))))
-        if cal <= 0 and p <= 0 and c <= 0 and f <= 0:
-            continue
-        foods.append(
-            {
-                "id": "est:" + slugify_est(name),
-                "name": name[:120],
-                "cal": cal,
-                "p": p,
-                "c": c,
-                "f": f,
-            }
+        item = food_result(
+            "est:" + slugify_est(name), name, "estimate",
+            serving_label=str(it.get("portion") or "1 serving").strip()[:40], data_type="Estimate",
+            kcal_serving=it.get("cal"), p=it.get("p"), c=it.get("c"), f=it.get("f"),
         )
+        if item:
+            foods.append(item)
         if len(foods) >= limit:
             break
     return foods
 
 
-def search_foods(q):
-    q = (q or "").strip()[:80]
-    if len(q) < 2:
-        return [], []
-    results = []
-    seen = set()
-    sources = []
+# ---------------------------------------------------------------------------
+# Relevance ranking
+# ---------------------------------------------------------------------------
+STOP = {"and", "with", "or", "the", "a", "of", "in", "nfs", "ns", "as", "to", "only", "meat", "from", "not", "eaten"}
+# Mutually exclusive main foods: "chicken" query should not surface turkey/beef items.
+EXCLUSIVE = {"chicken", "turkey", "beef", "pork", "ham", "salmon", "tuna", "shrimp", "fish", "lamb", "tofu", "veal", "duck"}
+PLAIN_FORMS = {"raw", "cooked", "roasted", "grilled", "baked", "boiled", "steamed", "broiled", "plain", "fresh", "regular"}
+PROCESSED = {"dehydrated", "dried", "powder", "powdered", "canned", "frozen", "breaded", "fried", "babyfood", "baby",
+             "infant", "formula", "juice", "chips", "chip", "flavored", "flavor", "nuggets", "patties", "patty", "strips",
+             "sticks", "smoothie", "candy", "cereal", "bar", "bars", "cookie", "cookies", "bread", "muffin", "pie",
+             "cake", "yogurt", "sauce", "dressing", "soup", "sandwich", "salad", "sausage", "deli", "luncheon",
+             "lunchmeat", "sliced", "slices", "loaf", "roll", "spread", "mix", "drink", "beverage", "instant",
+             "imitation", "substitute", "coated", "battered", "marinade", "ingredient", "fast", "diet", "entree",
+             "microwaved", "uncooked", "added", "solution"}
+COOKED = {"cooked", "roasted", "grilled", "baked", "boiled", "steamed", "broiled", "braised", "stewed", "poached"}
+
+
+def name_words(name):
+    return [w for w in re.sub(r"[^a-z0-9]+", " ", (name or "").lower().replace("'", "")).split() if w]
+
+
+def query_tokens(q):
+    return [t for t in name_words(q) if t not in STOP]
+
+
+def token_hit(t, words):
+    """Whole word, or word-prefix/plural for tokens of 4+ chars ('banana' ~ 'bananas', 'mac' != 'macaroni')."""
+    for w in words:
+        if w == t:
+            return True
+        if len(t) >= 4 and (w.startswith(t) or (t.endswith("s") and w == t[:-1])):
+            return True
+        if len(t) >= 3 and t.endswith("es") and w == t[:-2]:  # "eggs"~"egg" handled above; "tomatoes"
+            return True
+    return False
+
+
+def src_is_chain(normalized_name):
+    padded = " " + normalized_name + " "
+    return any((" " + re.sub(r"[^a-z0-9]+", " ", h).strip() + " ") in padded for h in RESTAURANT_HINTS)
+
+
+def score_food(item, q, tokens, restaurant, brand_query):
+    """Higher is better; None means drop (irrelevant)."""
+    name = item.get("name") or ""
+    words = name_words(name)
+    if not tokens or not words:
+        return None
+    hits = [t for t in tokens if token_hit(t, words)]
+    if not hits:
+        return None
+    coverage = len(hits) / len(tokens)
+    s = 60.0 * coverage
+    if coverage < 1:
+        s -= 25  # partial matches ("Kit Kat Big Kat" for 'big mac') sink below full matches
+    qn = " ".join(name_words(q))
+    nn = " ".join(words)
+    desc_words = name_words(item.get("name", "")[len(item.get("brand") or ""):]) if item.get("brand") else words
+    if nn == qn or " ".join(desc_words) == qn:
+        s += 30
+    elif nn.startswith(qn) or " ".join(desc_words).startswith(qn):
+        s += 15
+    elif len(tokens) > 1 and qn in nn:
+        s += 10  # whole phrase in order: "... spaghetti with meat sauce"
+    if desc_words and tokens and token_hit(tokens[0], desc_words[:1]):
+        s += 8  # head noun first: "Chicken breast, ..." vs "Salad with chicken breast"
+    extra = [w for w in desc_words if w not in STOP and not any(token_hit(t, [w]) for t in tokens) and not w.isdigit()]
+    s -= min(20, 1.5 * len([w for w in extra if w not in PLAIN_FORMS]))
+    ex_q = EXCLUSIVE.intersection(tokens)
+    if ex_q and (EXCLUSIVE.intersection(words) - ex_q):
+        s -= 35  # e.g. turkey item for 'chicken breast'
+    s -= 12 * len(PROCESSED.intersection(extra))  # processed forms the user did not ask for
+    if PLAIN_FORMS.intersection(words):
+        s += 6
+    if ex_q and "raw" in words and not COOKED.intersection(words) and "raw" not in tokens:
+        s -= 10  # meat queries: people log cooked meat
+    if "nfs" in words or "ns as to" in nn or "skin not eaten" in nn or "skinless" in words:
+        s += 3  # FNDDS generic defaults / lean default
+    if not restaurant and src_is_chain(nn):
+        s -= 15  # "McDONALD'S, Bacon Ranch Salad with Grilled Chicken" for a plain 'grilled chicken'
+    src, dt = item.get("source"), item.get("dataType") or ""
+    if src == "curated":
+        s += 40 if restaurant else 5
+    elif src == "fdc" and dt in GENERIC_TYPES:
+        s += 5 if (restaurant or brand_query) else 30  # generics are the default for plain/homemade queries
+        if dt == "Survey (FNDDS)":
+            s += 2
+    elif src == "estimate":
+        s += 10 if restaurant else -15
+    elif src == "off":
+        s -= 8
+    brand = (item.get("brand") or "").lower()
+    if brand:
+        bw = name_words(brand)
+        if brand_query and any(token_hit(t, bw) and not token_hit(t, desc_words) for t in tokens):
+            s += 30  # user named this brand
+        elif not brand_query:
+            s -= 10
+    s -= len(words) * 0.2  # shorter names win ties
+    return round(s, 1)
+
+
+def rank_foods(items, q):
+    tokens = query_tokens(q)
     restaurant = query_looks_restaurant(q)
+    # "Brand query": a query word that appears in some branded item's brand but in no generic
+    # item's description (e.g. 'tyson chicken'), or the query names a restaurant chain.
+    generic_words = [name_words(it["name"]) for it in items if it.get("dataType") in GENERIC_TYPES]
+    brand_query = query_names_chain(q)
+    for t in tokens:
+        if brand_query:
+            break
+        in_brand = any(it.get("brand") and token_hit(t, name_words(it["brand"])) for it in items)
+        in_generic = any(token_hit(t, w) for w in generic_words)
+        brand_query = in_brand and not in_generic and t not in EXCLUSIVE
+    best = {}
+    for it in items:
+        sc = score_food(it, q, tokens, restaurant, brand_query)
+        if sc is None:
+            continue
+        it["score"] = sc
+        key = " ".join(name_words(it["name"]))
+        if key not in best or best[key]["score"] < sc:
+            best[key] = it
+    ranked = sorted(best.values(), key=lambda x: -x["score"])
+    full = [it for it in ranked if it["score"] >= 30]
+    return full if len(full) >= 5 else ranked  # drop partial-word junk when there are enough real hits
 
-    def add_all(items, source):
-        added = 0
-        for it in items:
-            key = re.sub(r"[^a-z0-9]+", " ", (it.get("name") or "").lower()).strip()
-            if not key or key in seen:
-                continue
-            seen.add(key)
-            results.append(it)
-            added += 1
-        if added and source not in sources:
-            sources.append(source)
 
-    # Order: FDC first; for restaurant-like queries estimate BEFORE Open Food Facts
-    # so grocery OFF hits do not burn the request budget and crowd out menu items.
-    if restaurant:
-        add_all(search_curated_restaurant(q, limit=8), "curated")
-    add_all(search_fdc(q, limit=6 if restaurant else 8), "fdc")
-    if restaurant:
-        # Estimate after curated so menu items appear even if Grok is slow/unavailable.
-        if len(results) < 10:
-            add_all(search_estimate(q, limit=min(6, 15 - len(results))), "estimate")
-        off_budget = min(3, max(0, 15 - len(results)))
-        if off_budget:
-            add_all(search_open_food_facts(q, limit=off_budget), "off")
-    else:
-        off_budget = max(0, 15 - len(results))
-        if off_budget:
-            add_all(search_open_food_facts(q, limit=off_budget), "off")
-        if len(results) < 5:
-            add_all(search_estimate(q, limit=min(6, 15 - len(results))), "estimate")
-    return results[:15], sources
+# ---------------------------------------------------------------------------
+# Cache (in-process TTL + LRU, keyed on normalized query)
+# ---------------------------------------------------------------------------
+CACHE_TTL = int(os.environ.get("FOOD_CACHE_TTL", str(24 * 3600)))
+CACHE_TTL_PARTIAL = 300
+CACHE_MAX = 1000
+_cache = OrderedDict()
+_cache_lock = threading.Lock()
+
+
+def cache_get(key):
+    with _cache_lock:
+        hit = _cache.get(key)
+        if not hit:
+            return None
+        if hit[0] < time.time():
+            _cache.pop(key, None)
+            return None
+        _cache.move_to_end(key)
+        return hit[1]
+
+
+def cache_put(key, value, ttl):
+    with _cache_lock:
+        _cache[key] = (time.time() + ttl, value)
+        _cache.move_to_end(key)
+        while len(_cache) > CACHE_MAX:
+            _cache.popitem(last=False)
+
+
+def search_foods(q):
+    """Returns {foods, sources, errors, partial, cached}. Never raises for source failures."""
+    q = (q or "").strip()[:80]
+    key = " ".join(name_words(q))
+    if len(q) < 2 or not key:
+        return {"foods": [], "sources": [], "errors": {}, "partial": False, "cached": False}
+    hit = cache_get(key)
+    if hit:
+        return dict(hit, cached=True)
+    restaurant = query_looks_restaurant(q)
+    started = time.time()
+    curated = search_curated_restaurant(q) if restaurant else []
+    jobs = {
+        "fdc": SEARCH_POOL.submit(search_fdc, q, 50, "Foundation,SR Legacy,Survey (FNDDS)"),
+        "fdc_branded": SEARCH_POOL.submit(search_fdc, q, 10, "Branded"),
+        "off": SEARCH_POOL.submit(search_open_food_facts, q, 10),
+    }
+    if restaurant and not curated:
+        jobs["estimate"] = SEARCH_POOL.submit(search_estimate, q)  # runs alongside, not after
+    items, sources, errors = list(curated), (["curated"] if curated else []), {}
+    done, pending = wait(list(jobs.values()), timeout=SEARCH_BUDGET)
+    for name, fut in jobs.items():
+        if name == "estimate" and fut not in done:
+            continue  # collected below with its own budget
+        if fut in pending:
+            errors[name] = "timeout"
+            continue
+        try:
+            got = fut.result()
+            items.extend(got)
+            if got:
+                sources.append(name)
+        except SourceError as e:
+            errors[name] = str(e)
+        except Exception as e:
+            sys.stderr.write("search %s %s: %s\n" % (name, type(e).__name__, e))
+            errors[name] = "failed"
+    ranked = rank_foods(items, q)
+    decent = [f for f in ranked if f["score"] >= 45]
+    if len(decent) < 3 and api_key():
+        fut = jobs.get("estimate")
+        est_started = started if fut else time.time()
+        fut = fut or SEARCH_POOL.submit(search_estimate, q)
+        try:
+            # Estimate gets ESTIMATE_TIMEOUT from when it started (worst case ~budget + 8s total).
+            got = fut.result(timeout=max(1.0, ESTIMATE_TIMEOUT - (time.time() - est_started)))
+            if got:
+                sources.append("estimate")
+                ranked = rank_foods(items + got, q)
+        except Exception as e:
+            errors["estimate"] = "timeout" if not isinstance(e, SourceError) else str(e)
+    result = {
+        "foods": ranked[:20],
+        "sources": sources,
+        "errors": errors,
+        "partial": bool(errors),
+        "cached": False,
+    }
+    # Full answers cache 24h; partial/empty ones only briefly so a transient 429/timeout heals.
+    cache_put(key, result, CACHE_TTL if (not errors and ranked) else CACHE_TTL_PARTIAL)
+    return result
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -542,12 +772,12 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
         self.send_header("Vary", "Origin")
 
-    def send_json(self, code, payload):
+    def send_json(self, code, payload, cache_control="no-store"):
         body = json.dumps(payload).encode("utf-8")
         self.send_response(code)
         self.cors()
         self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Cache-Control", "no-store")
+        self.send_header("Cache-Control", cache_control)
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -584,6 +814,8 @@ class Handler(BaseHTTPRequestHandler):
                     "service": "omnifit-meal-scan",
                     "search": True,
                     "fdc": bool(fdc_api_key()),
+                    "fdc_demo_key": fdc_api_key() == "DEMO_KEY",
+                    "reasoning_effort": REASONING_EFFORT,
                     "estimate": bool(key),
                 },
             )
@@ -592,13 +824,18 @@ class Handler(BaseHTTPRequestHandler):
             qs = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query or "")
             q = (qs.get("q") or [""])[0]
             try:
-                foods, sources = search_foods(q)
+                result = search_foods(q)
             except Exception as e:
                 sys.stderr.write("search_food %s: %s\n" % (type(e).__name__, e))
                 # Still 200 with empty list so the app can show local foods without "unavailable".
-                self.send_json(200, {"foods": [], "sources": [], "error": "search_failed", "message": "Search failed."})
+                self.send_json(200, {"foods": [], "sources": [], "errors": {"server": "failed"}, "partial": True,
+                                     "error": "search_failed", "message": "Search failed."})
                 return
-            self.send_json(200, {"foods": foods, "sources": sources})
+            if result["errors"]:
+                sys.stderr.write("search_food %r partial: %s\n" % (q[:40], result["errors"]))
+            # Complete answers are cacheable by the browser/CDN; partial ones are not.
+            cc = "no-store" if result["partial"] or not result["foods"] else "public, max-age=3600"
+            self.send_json(200, result, cc)
             return
         self.send_json(404, {"error": "not_found", "message": "Not found"})
 
@@ -646,7 +883,7 @@ class Handler(BaseHTTPRequestHandler):
         req_body = {
             "model": MODEL,
             "temperature": 0,
-            "max_tokens": 500,
+            "max_tokens": 700,
             "response_format": {"type": "json_object"},
             "messages": [
                 {"role": "system", "content": SYSTEM},
@@ -662,6 +899,8 @@ class Handler(BaseHTTPRequestHandler):
                 },
             ],
         }
+        if REASONING_EFFORT:
+            req_body["reasoning_effort"] = REASONING_EFFORT
         req = urllib.request.Request(
             XAI_URL,
             data=json.dumps(req_body).encode("utf-8"),
@@ -672,16 +911,24 @@ class Handler(BaseHTTPRequestHandler):
             method="POST",
         )
         try:
-            with urllib.request.urlopen(req, timeout=75, context=SSL_CTX) as resp:
+            with urllib.request.urlopen(req, timeout=60, context=SSL_CTX) as resp:
                 raw = json.loads(resp.read().decode("utf-8"))
         except urllib.error.HTTPError as e:
             detail = e.read().decode("utf-8", "ignore")[:300]
             sys.stderr.write("scan_meal HTTP %s %s\n" % (e.code, detail.replace("\n", " ")))
-            self.send_json(502, {"error": "upstream", "message": "Scan failed. Try another photo."})
+            msg = {
+                401: "Scan service key is invalid (server config).",
+                403: "Scan service key is not allowed (server config).",
+                404: "Scan model is unavailable (server config).",
+                429: "Scan service is busy. Wait a moment and try again.",
+            }.get(e.code, "Scan failed. Try another photo.")
+            self.send_json(502, {"error": "upstream", "upstream_status": e.code, "message": msg})
             return
         except Exception as e:
             sys.stderr.write("scan_meal %s: %s\n" % (type(e).__name__, e))
-            self.send_json(502, {"error": "upstream", "message": "Could not reach the scan service."})
+            timed_out = "timed out" in str(e).lower()
+            self.send_json(504 if timed_out else 502, {"error": "upstream_timeout" if timed_out else "upstream",
+                           "message": "Scan took too long. Try again." if timed_out else "Could not reach the scan service."})
             return
         try:
             content = raw["choices"][0]["message"]["content"]
