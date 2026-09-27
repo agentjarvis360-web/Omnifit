@@ -179,6 +179,9 @@ def food_result(id, name, source, kcal100=None, p100=None, c100=None, f100=None,
     kcal_serving = num(kcal_serving)
     if kcal_serving <= 0 and num(p) <= 0 and num(c) <= 0 and num(f) <= 0:
         return None
+    atwater = 4 * num(p) + 4 * num(c) + 9 * num(f)
+    if (per100 and kcal100 > 902) or (kcal_serving <= 0 and atwater > 5):
+        return None  # bad label data: >900 kcal/100 g (pure fat is ~900) or 0 kcal with macros
     out = {
         "id": id,
         "name": str(name)[:120],
@@ -207,11 +210,16 @@ def fdc_api_key():
     return (os.environ.get("FDC_API_KEY") or "DEMO_KEY").strip()
 
 
-def http_get_json(url, headers=None, timeout=SEARCH_TIMEOUT):
+def http_get_json(url, headers=None, timeout=SEARCH_TIMEOUT, body=None):
+    """GET (or POST when body is given) JSON. Errors become SourceError; the URL is never logged."""
+    hdrs = headers or {"User-Agent": OFF_USER_AGENT, "Accept": "application/json"}
+    if body is not None:
+        hdrs = dict(hdrs, **{"Content-Type": "application/json"})
     req = urllib.request.Request(
         url,
-        headers=headers or {"User-Agent": OFF_USER_AGENT, "Accept": "application/json"},
-        method="GET",
+        data=json.dumps(body).encode("utf-8") if body is not None else None,
+        headers=hdrs,
+        method="POST" if body is not None else "GET",
     )
     try:
         with urllib.request.urlopen(req, timeout=timeout, context=SSL_CTX) as resp:
@@ -344,14 +352,54 @@ def fdc_serving(food, q_tokens):
     return 100.0, "100 g"
 
 
+def fdc_add_portions(items, q, timeout=3.0):
+    """Live /foods/search returns no foodMeasures for SR Legacy/Foundation, so those show "100 g".
+    One batched POST /foods call fetches foodPortions for the top few and swaps in a household serving."""
+    need = [it for it in items if it.get("source") == "fdc" and it.get("dataType") in ("SR Legacy", "Foundation")
+            and it.get("servingLabel") == "100 g" and it.get("_n100")][:10]
+    if not need:
+        return
+    ids = [int(it["id"].split(":", 1)[1]) for it in need if it["id"].split(":", 1)[1].isdigit()]
+    data = http_get_json(
+        FDC_API_BASE + "/foods?" + urllib.parse.urlencode({"api_key": fdc_api_key()}),
+        timeout=timeout, body={"fdcIds": ids, "format": "full", "nutrients": [1008]},
+    )
+    portions = {}
+    for food in data if isinstance(data, list) else []:
+        meas = []
+        for p in food.get("foodPortions") or []:
+            unit = str((p.get("measureUnit") or {}).get("name") or "")
+            desc = str(p.get("portionDescription") or "").strip()
+            if not desc or desc.lower().startswith("quantity not specified"):
+                bits = ["%g" % num(p.get("amount"), 1), "" if unit in ("", "undetermined") else unit, str(p.get("modifier") or "")]
+                desc = " ".join(b for b in bits if b).strip()
+            meas.append({"disseminationText": desc, "gramWeight": p.get("gramWeight"), "rank": p.get("sequenceNumber") or 99})
+        portions[str(food.get("fdcId"))] = meas
+    q_tokens = query_tokens(q)
+    for it in need:
+        meas = portions.get(it["id"].split(":", 1)[1])
+        if not meas:
+            continue
+        grams, label = fdc_serving({"dataType": it["dataType"], "foodMeasures": meas}, q_tokens)
+        if label == "100 g":
+            continue
+        k, p, c, f = it["_n100"]
+        new = food_result(it["id"], it["name"], "fdc", k, p, c, f, grams, label, brand=it.get("brand"), data_type=it["dataType"])
+        if new:
+            new["score"] = it["score"]
+            it.update(new)
+
+
 def search_fdc(q, limit=10, data_types="Foundation,SR Legacy,Survey (FNDDS)"):
     key = fdc_api_key()
     if not key:
         return []
-    params = urllib.parse.urlencode(
-        {"query": q, "pageSize": limit, "dataType": data_types, "api_key": key}
+    # POST: the GET form intermittently returns nginx 400 for multi-dataType queries
+    # (e.g. 'banana' pageSize 50, 'big mac' Survey) while the same POST body returns 200.
+    data = http_get_json(
+        FDC_API_BASE + "/foods/search?" + urllib.parse.urlencode({"api_key": key}),
+        body={"query": q, "pageSize": limit, "dataType": [t.strip() for t in data_types.split(",")]},
     )
-    data = http_get_json(FDC_API_BASE + "/foods/search?" + params)
     q_tokens = query_tokens(q)
     foods = []
     for food in data.get("foods") or []:
@@ -379,6 +427,8 @@ def search_fdc(q, limit=10, data_types="Foundation,SR Legacy,Survey (FNDDS)"):
             data_type=str(food.get("dataType") or ""),
         )
         if item:
+            item["_n100"] = (fdc_energy_kcal(food), num(nutrients.get("Protein")),
+                             num(nutrients.get("Carbohydrate, by difference")), num(nutrients.get("Total lipid (fat)")))
             foods.append(item)
         if len(foods) >= limit:
             break
@@ -535,7 +585,7 @@ def search_estimate(q, limit=6, timeout=ESTIMATE_TIMEOUT):
 # ---------------------------------------------------------------------------
 # Relevance ranking
 # ---------------------------------------------------------------------------
-STOP = {"and", "with", "or", "the", "a", "of", "in", "nfs", "ns", "as", "to", "only", "meat", "from", "not", "eaten"}
+STOP = {"and", "with", "or", "the", "a", "of", "in", "nfs", "ns", "as", "to", "only", "from", "not", "eaten"}
 # Mutually exclusive main foods: "chicken" query should not surface turkey/beef items.
 EXCLUSIVE = {"chicken", "turkey", "beef", "pork", "ham", "salmon", "tuna", "shrimp", "fish", "lamb", "tofu", "veal", "duck"}
 PLAIN_FORMS = {"raw", "cooked", "roasted", "grilled", "baked", "boiled", "steamed", "broiled", "plain", "fresh", "regular"}
@@ -546,6 +596,8 @@ PROCESSED = {"dehydrated", "dried", "powder", "powdered", "canned", "frozen", "b
              "lunchmeat", "sliced", "slices", "loaf", "roll", "spread", "mix", "drink", "beverage", "instant",
              "imitation", "substitute", "coated", "battered", "marinade", "ingredient", "fast", "diet", "entree",
              "microwaved", "uncooked", "added", "solution"}
+DRY_WHEN_RAW = {"rice", "oat", "oats", "oatmeal", "pasta", "spaghetti", "macaroni", "noodle", "noodles", "quinoa",
+                "barley", "bean", "beans", "lentil", "lentils", "flour", "egg", "eggs"}
 COOKED = {"cooked", "roasted", "grilled", "baked", "boiled", "steamed", "broiled", "braised", "stewed", "poached"}
 
 
@@ -590,12 +642,24 @@ def score_food(item, q, tokens, restaurant, brand_query):
     qn = " ".join(name_words(q))
     nn = " ".join(words)
     desc_words = name_words(item.get("name", "")[len(item.get("brand") or ""):]) if item.get("brand") else words
+    # Store brands often use the query itself as the description ("Grilled chicken" burrito);
+    # give them half the name-match bonus unless the user asked for a brand.
+    nb = 0.5 if (item.get("source") == "off" or item.get("dataType") == "Branded") and not brand_query else 1.0
     if nn == qn or " ".join(desc_words) == qn:
-        s += 30
+        s += 30 * nb
     elif nn.startswith(qn) or " ".join(desc_words).startswith(qn):
-        s += 15
+        s += 15 * nb
     elif len(tokens) > 1 and qn in nn:
-        s += 10  # whole phrase in order: "... spaghetti with meat sauce"
+        s += 10 * nb  # whole phrase in order: "... spaghetti with meat sauce"
+    elif len(tokens) > 1 and any(len(t) <= 3 for t in tokens):
+        s -= 8  # short-word names ('big mac') are phrases: "Mac & ... big bowl" is not a Big Mac
+    qw = name_words(q)
+    if "with" in qw and "with" in words:
+        # Role inversion: 'spaghetti with meat sauce' should not rank "Spaghetti sauce with meat"
+        # (a sauce) first: a word the user put after "with" appears before "with" in the item.
+        after_q = set(qw[qw.index("with") + 1:])
+        if after_q.intersection(words[:words.index("with")]):
+            s -= 15
     if desc_words and tokens and token_hit(tokens[0], desc_words[:1]):
         s += 8  # head noun first: "Chicken breast, ..." vs "Salad with chicken breast"
     extra = [w for w in desc_words if w not in STOP and not any(token_hit(t, [w]) for t in tokens) and not w.isdigit()]
@@ -608,6 +672,8 @@ def score_food(item, q, tokens, restaurant, brand_query):
         s += 6
     if ex_q and "raw" in words and not COOKED.intersection(words) and "raw" not in tokens:
         s -= 10  # meat queries: people log cooked meat
+    elif not ex_q and "raw" in words and not COOKED.intersection(words) and not DRY_WHEN_RAW.intersection(tokens):
+        s += 4  # produce: "Banana, raw" over "Banana, baked"
     if "nfs" in words or "ns as to" in nn or "skin not eaten" in nn or "skinless" in words:
         s += 3  # FNDDS generic defaults / lean default
     if not restaurant and src_is_chain(nn):
@@ -729,6 +795,10 @@ def search_foods(q):
             sys.stderr.write("search %s %s: %s\n" % (name, type(e).__name__, e))
             errors[name] = "failed"
     ranked = rank_foods(items, q)
+    try:
+        fdc_add_portions(ranked[:12], q)
+    except Exception as e:
+        sys.stderr.write("fdc_portions %s: %s\n" % (type(e).__name__, e))  # keep the 100 g servings
     decent = [f for f in ranked if f["score"] >= 45]
     if len(decent) < 3 and api_key():
         fut = jobs.get("estimate")
@@ -743,7 +813,7 @@ def search_foods(q):
         except Exception as e:
             errors["estimate"] = "timeout" if not isinstance(e, SourceError) else str(e)
     result = {
-        "foods": ranked[:20],
+        "foods": [{k: v for k, v in it.items() if not k.startswith("_")} for it in ranked[:20]],
         "sources": sources,
         "errors": errors,
         "partial": bool(errors),
