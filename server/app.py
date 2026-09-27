@@ -703,7 +703,7 @@ PROCESSED = {"dehydrated", "dried", "powder", "powdered", "canned", "frozen", "b
              "cake", "yogurt", "sauce", "dressing", "soup", "sandwich", "salad", "sausage", "deli", "luncheon",
              "lunchmeat", "sliced", "slices", "loaf", "roll", "spread", "mix", "drink", "beverage", "instant",
              "imitation", "substitute", "coated", "battered", "marinade", "ingredient", "fast", "diet", "entree",
-             "microwaved", "uncooked", "added", "solution"}
+             "microwaved", "uncooked", "added", "solution", "snack", "snacks", "cracker", "crackers", "cakes", "liquid"}
 DRY_WHEN_RAW = {"rice", "oat", "oats", "oatmeal", "pasta", "spaghetti", "macaroni", "noodle", "noodles", "quinoa",
                 "barley", "bean", "beans", "lentil", "lentils", "flour", "egg", "eggs"}
 COOKED = {"cooked", "roasted", "grilled", "baked", "boiled", "steamed", "broiled", "braised", "stewed", "poached"}
@@ -711,6 +711,17 @@ COOKED = {"cooked", "roasted", "grilled", "baked", "boiled", "steamed", "broiled
 
 def name_words(name):
     return [w for w in re.sub(r"[^a-z0-9]+", " ", (name or "").lower().replace("'", "")).split() if w]
+
+
+def name_segments(name):
+    """Comma segments of a description, '&' read as 'and': "Rice, white, cooked" -> ["rice", "white", "cooked"]."""
+    return [seg.strip() for seg in (name or "").lower().replace("&", " and ").split(",") if seg.strip()]
+
+
+def mostly_caps(text):
+    """SR Legacy writes brand/restaurant names in caps: "OLIVE GARDEN", "McDONALD'S"."""
+    letters = [ch for ch in text if ch.isalpha()]
+    return len(letters) >= 3 and sum(ch.isupper() for ch in letters) >= 0.8 * len(letters)
 
 
 def query_tokens(q):
@@ -770,6 +781,23 @@ def score_food(item, q, tokens, restaurant, brand_query):
             s -= 15
     if desc_words and tokens and token_hit(tokens[0], desc_words[:1]):
         s += 8  # head noun first: "Chicken breast, ..." vs "Salad with chicken breast"
+    # Plain single-ingredient matches beat combo dishes unless the query itself is a combo.
+    q_combo = "and" in qw or "with" in qw or "&" in q
+    desc_raw = name[len(item.get("brand") or ""):] if item.get("brand") and name.lower().startswith((item.get("brand") or "").lower()) else name
+    segs = [name_words(seg) for seg in name_segments(desc_raw)]
+    lead = segs[0] if segs else []
+    lead_combo = "and" in lead or "with" in lead
+    with_extra = False
+    if not q_combo:
+        if lead_combo:
+            s -= 12  # "Beans and white rice", "Black beans with meat" for 'white rice' / 'black beans'
+        elif any("with" in seg and any(w not in STOP and w not in PLAIN_FORMS and not any(token_hit(t, [w]) for t in tokens)
+                                       for w in seg[seg.index("with") + 1:]) for seg in segs[1:]):
+            s -= 4  # "Rice, cooked, with milk" for 'rice'
+            with_extra = True
+    lead_core = [w for w in lead if w not in STOP and w not in PLAIN_FORMS]
+    if coverage == 1 and lead_core and (q_combo or not lead_combo) and not with_extra and all(any(token_hit(t, [w]) for t in tokens) for w in lead_core):
+        s += 6  # leading segment is the query's food: "Rice, white, cooked" for 'white rice'
     extra = [w for w in desc_words if w not in STOP and not any(token_hit(t, [w]) for t in tokens) and not w.isdigit()]
     s -= min(20, 1.5 * len([w for w in extra if w not in PLAIN_FORMS]))
     ex_q = EXCLUSIVE.intersection(tokens)
@@ -782,10 +810,16 @@ def score_food(item, q, tokens, restaurant, brand_query):
         s -= 10  # meat queries: people log cooked meat
     elif not ex_q and "raw" in words and not COOKED.intersection(words) and not DRY_WHEN_RAW.intersection(tokens):
         s += 4  # produce: "Banana, raw" over "Banana, baked"
+    elif ((DRY_WHEN_RAW - {"egg", "eggs"}).intersection(tokens) and ("raw" in words or "dry" in words)
+          and not COOKED.intersection(words) and not {"raw", "dry", "uncooked"}.intersection(tokens)):
+        s -= 12  # grains/legumes are logged cooked: "Beans, cannellini, dry" below cooked beans
     if "nfs" in words or "ns as to" in nn or "skin not eaten" in nn or "skinless" in words:
         s += 3  # FNDDS generic defaults / lean default
     if not restaurant and src_is_chain(nn):
         s -= 15  # "McDONALD'S, Bacon Ranch Salad with Grilled Chicken" for a plain 'grilled chicken'
+    elif (not restaurant and not brand_query and item.get("dataType") in GENERIC_TYPES and "," in name
+          and any(mostly_caps(seg) and not set(name_words(seg)) <= {"nfs", "ns"} for seg in name.split(","))):
+        s -= 10  # "OLIVE GARDEN, spaghetti with meat sauce", "Rice, brown, ..., UNCLE BENS" below the generic dish
     src, dt = item.get("source"), item.get("dataType") or ""
     if src == "curated":
         s += 40 if restaurant else 5
