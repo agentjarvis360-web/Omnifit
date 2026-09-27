@@ -13,7 +13,7 @@ import urllib.request
 import threading
 import time
 from collections import OrderedDict
-from concurrent.futures import ThreadPoolExecutor, wait
+from concurrent.futures import ThreadPoolExecutor, wait, TimeoutError as FuturesTimeout
 
 try:
     import certifi
@@ -322,7 +322,28 @@ def fdc_energy_kcal(food):
     return 0
 
 
-GOOD_PORTION_WORDS = ("medium", "large", "breast", "piece", "slice", "cup", "tbsp", "oz", "egg", "fillet", "patty", "item")
+def portion_pref(tl, q_tokens):
+    """Lower is better. Standard household portion first: medium, then cup / common units, then
+    large/small; extra large/small (and yield/fl oz) only when nothing else exists."""
+    pref = 0
+    if re.search(r"\b(extra large|extra small|jumbo)\b", tl):
+        pref += 6
+    elif re.search(r"\bmedium\b", tl):
+        pref -= 6
+    elif re.search(r"\blarge\b", tl):
+        pref -= 3  # e.g. eggs: USDA's default egg is "1 large"
+    elif re.search(r"\bsmall\b", tl):
+        pref -= 1
+    singular = [t[:-1] for t in q_tokens if t.endswith("s") and len(t) > 3]  # "eggs" -> "1 egg"
+    if " ".join(q_tokens) in tl or any(t in tl for t in q_tokens if len(t) > 3) or any(re.search(r"\b%s\b" % re.escape(t), tl) for t in singular):
+        pref -= 4  # names the food: "1 medium breast", "1 banana", "1 egg"
+    if re.search(r"\bcup\b", tl):
+        pref -= 2
+    elif re.search(r"\b(oz|tbsp|slice|piece|fillet|patty|item|serving|nlea)\b", tl):
+        pref -= 1
+    if "yield" in tl or "fl oz" in tl:
+        pref += 2
+    return pref
 
 
 def fdc_serving(food, q_tokens):
@@ -343,17 +364,7 @@ def fdc_serving(food, q_tokens):
         text = str(m.get("disseminationText") or m.get("portionDescription") or m.get("modifier") or "").strip()
         if g <= 0 or g > 1500 or not text or "quantity not specified" in text.lower() or "racc" in text.lower() or text.lower() == "undetermined":
             continue
-        tl = text.lower()
-        pref = 0
-        if " ".join(q_tokens) in tl or any(t in tl for t in q_tokens if len(t) > 3):
-            pref -= 3
-        if "yield" in tl or "fl oz" in tl:
-            pref += 2
-        if "medium" in tl:
-            pref -= 2
-        if any(w in tl for w in GOOD_PORTION_WORDS):
-            pref -= 1
-        measures.append((pref, num(m.get("rank"), 99), g, text))
+        measures.append((portion_pref(text.lower(), q_tokens), num(m.get("rank"), 99), g, text))
     if measures:
         measures.sort(key=lambda x: (x[0], x[1]))
         _, _, g, text = measures[0]
@@ -361,20 +372,44 @@ def fdc_serving(food, q_tokens):
     return 100.0, "100 g"
 
 
-def fdc_add_portions(items, q, timeout=3.0):
-    """Live /foods/search returns no foodMeasures for SR Legacy/Foundation, so those show "100 g".
-    One batched POST /foods call fetches foodPortions for the top few and swaps in a household serving."""
-    need = [it for it in items if it.get("source") == "fdc" and it.get("dataType") in ("SR Legacy", "Foundation")
-            and it.get("servingLabel") == "100 g" and it.get("_n100")][:10]
-    if not need:
-        return
-    ids = [int(it["id"].split(":", 1)[1]) for it in need if it["id"].split(":", 1)[1].isdigit()]
-    data = http_get_json(
-        FDC_API_BASE + "/foods?" + urllib.parse.urlencode({"api_key": fdc_api_key()}),
-        timeout=timeout, body={"fdcIds": ids, "format": "full", "nutrients": [1008]},
-    )
-    portions = {}
-    for food in data if isinstance(data, list) else []:
+PORTIONS_TIMEOUT = float(os.environ.get("FDC_PORTIONS_TIMEOUT", "5"))  # how long a search waits for portions
+# The lookup itself may run longer in the background so a slow first query still fills the cache.
+PORTIONS_FETCH_TIMEOUT = max(PORTIONS_TIMEOUT, 12.0)
+PORTION_POOL = ThreadPoolExecutor(max_workers=8)  # separate pool so slow lookups never starve searches
+PORTIONS_TOP = 6  # only the top few SR Legacy/Foundation results need a household portion
+PORTIONS_TTL = 7 * 24 * 3600
+_portion_cache = {}  # fdcId -> (expires, measures)
+_portion_inflight = {}  # fdcId -> (started, Future)
+_portion_lock = threading.Lock()
+
+
+class PortionError(Exception):
+    """Message is safe to return to clients (never contains the URL or API key)."""
+
+
+def fetch_fdc_portions(fdc_id, timeout=PORTIONS_FETCH_TIMEOUT):
+    """GET /food/{id}?format=full&nutrients=208 (about 2 KB). foodPortions only exist in format=full;
+    'abridged' drops them. The old batched POST /foods (+ nutrients filter) took 3-4 s on USDA's cold
+    cache, over its 3 s timeout, so portions silently fell back to 100 g on the first query."""
+    try:
+        url = FDC_API_BASE + "/food/%d?" % fdc_id + urllib.parse.urlencode(
+            {"format": "full", "nutrients": "208", "api_key": fdc_api_key()})
+        req = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": OFF_USER_AGENT})
+        try:
+            with urllib.request.urlopen(req, timeout=timeout, context=SSL_CTX) as resp:
+                food = json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            raise PortionError("HTTP %d" % e.code)
+        except urllib.error.URLError as e:
+            if "timed out" in str(e.reason).lower():
+                raise PortionError("timeout %.1fs" % timeout)
+            raise PortionError("network %s" % type(e.reason).__name__)
+        except (TimeoutError, OSError) as e:
+            if isinstance(e, TimeoutError) or "timed out" in str(e).lower():
+                raise PortionError("timeout %.1fs" % timeout)
+            raise PortionError("network %s" % type(e).__name__)
+        except ValueError:
+            raise PortionError("bad JSON")
         meas = []
         for p in food.get("foodPortions") or []:
             unit = str((p.get("measureUnit") or {}).get("name") or "")
@@ -383,13 +418,73 @@ def fdc_add_portions(items, q, timeout=3.0):
                 bits = ["%g" % num(p.get("amount"), 1), "" if unit in ("", "undetermined") else unit, str(p.get("modifier") or "")]
                 desc = " ".join(b for b in bits if b).strip()
             meas.append({"disseminationText": desc, "gramWeight": p.get("gramWeight"), "rank": p.get("sequenceNumber") or 99})
-        portions[str(food.get("fdcId"))] = meas
+        with _portion_lock:
+            _portion_cache[fdc_id] = (time.time() + PORTIONS_TTL, meas)
+            if len(_portion_cache) > 5000:
+                for k in sorted(_portion_cache, key=lambda k: _portion_cache[k][0])[:1000]:
+                    _portion_cache.pop(k, None)
+        return meas
+    finally:
+        with _portion_lock:
+            _portion_inflight.pop(fdc_id, None)
+
+
+def portion_candidates(items):
+    """fdcIds of the top SR Legacy/Foundation results that still show the 100 g fallback."""
+    ids = []
+    for it in items:
+        if (it.get("source") == "fdc" and it.get("dataType") in ("SR Legacy", "Foundation")
+                and it.get("servingLabel") == "100 g" and it.get("_n100") and it["id"].split(":", 1)[1].isdigit()):
+            ids.append(int(it["id"].split(":", 1)[1]))
+        if len(ids) >= PORTIONS_TOP:
+            break
+    return ids
+
+
+def prefetch_portions(ids):
+    """Start lookups (in parallel, deduped) for ids not cached or already in flight. Returns {id: measures|Future}."""
+    now = time.time()
+    out = {}
+    with _portion_lock:
+        for i in ids:
+            hit = _portion_cache.get(i)
+            if hit and hit[0] > now:
+                out[i] = hit[1]
+            elif i in _portion_inflight:
+                out[i] = _portion_inflight[i]
+            else:
+                _portion_inflight[i] = (now, PORTION_POOL.submit(fetch_fdc_portions, i))
+                out[i] = _portion_inflight[i]
+    return out
+
+
+def fdc_add_portions(items, q):
+    """Swap the 100 g fallback for a household portion on the top SR Legacy/Foundation results.
+    Returns an error summary like "timeout 5.0s" or "HTTP 400" (or "" when all lookups worked)."""
+    ids = portion_candidates(items)
+    if not ids:
+        return ""
+    got = prefetch_portions(ids)
+    by_id = {int(it["id"].split(":", 1)[1]): it for it in items if it["id"].split(":", 1)[1].isdigit()}
     q_tokens = query_tokens(q)
-    for it in need:
-        meas = portions.get(it["id"].split(":", 1)[1])
-        if not meas:
-            continue
-        grams, label = fdc_serving({"dataType": it["dataType"], "foodMeasures": meas}, q_tokens)
+    errs = []
+    for i in ids:
+        meas = got.get(i)
+        if isinstance(meas, tuple):  # (started, Future): wait at most PORTIONS_TIMEOUT from its start
+            started, fut = meas
+            try:
+                meas = fut.result(timeout=max(0.05, started + PORTIONS_TIMEOUT + 0.2 - time.time()))
+            except PortionError as e:
+                errs.append(str(e))
+                continue
+            except FuturesTimeout:
+                errs.append("timeout %.1fs" % PORTIONS_TIMEOUT)  # keeps running (up to PORTIONS_FETCH_TIMEOUT); fills the cache
+                continue
+            except Exception as e:
+                errs.append(type(e).__name__)
+                continue
+        it = by_id[i]
+        grams, label = fdc_serving({"dataType": it["dataType"], "foodMeasures": meas or []}, q_tokens)
         if label == "100 g":
             continue
         k, p, c, f = it["_n100"]
@@ -397,6 +492,10 @@ def fdc_add_portions(items, q, timeout=3.0):
         if new:
             new["score"] = it["score"]
             it.update(new)
+    if not errs:
+        return ""
+    first = max(set(errs), key=errs.count)
+    return first if len(errs) == 1 else "%s (%d of %d lookups)" % (first, len(errs), len(ids))
 
 
 def search_fdc(q, limit=10, data_types="Foundation,SR Legacy,Survey (FNDDS)"):
@@ -741,6 +840,7 @@ def rank_foods(items, q):
 # ---------------------------------------------------------------------------
 CACHE_TTL = int(os.environ.get("FOOD_CACHE_TTL", str(24 * 3600)))
 CACHE_TTL_PARTIAL = 300
+CACHE_TTL_PORTIONS = 30
 CACHE_MAX = 1000
 _cache = OrderedDict()
 _cache_lock = threading.Lock()
@@ -766,6 +866,9 @@ def cache_put(key, value, ttl):
             _cache.popitem(last=False)
 
 
+OPTIONAL_SOURCES = ("off", "fdc_portions")
+
+
 def search_foods(q):
     """Returns {foods, sources, errors, partial, cached}. Never raises for source failures."""
     q = (q or "").strip()[:80]
@@ -785,6 +888,15 @@ def search_foods(q):
     }
     if restaurant and not curated:
         jobs["estimate"] = SEARCH_POOL.submit(search_estimate, q)  # runs alongside, not after
+
+    def _prefetch(fut):
+        # As soon as generics arrive, start portion lookups for their top hits so they overlap
+        # with the slower branded/OFF calls instead of running after the whole budget.
+        try:
+            prefetch_portions(portion_candidates(rank_foods([dict(i) for i in fut.result()], q)))
+        except Exception:
+            pass
+    jobs["fdc"].add_done_callback(_prefetch)
     items, sources, errors = list(curated), (["curated"] if curated else []), {}
     done, pending = wait(list(jobs.values()), timeout=SEARCH_BUDGET)
     for name, fut in jobs.items():
@@ -805,9 +917,11 @@ def search_foods(q):
             errors[name] = "failed"
     ranked = rank_foods(items, q)
     try:
-        fdc_add_portions(ranked[:12], q)
+        perr = fdc_add_portions(ranked[:12], q)
     except Exception as e:
-        sys.stderr.write("fdc_portions %s: %s\n" % (type(e).__name__, e))  # keep the 100 g servings
+        perr = type(e).__name__
+    if perr:
+        errors["fdc_portions"] = perr  # visible to the client; affected items keep "100 g"
     decent = [f for f in ranked if f["score"] >= 45]
     if len(decent) < 3 and api_key():
         fut = jobs.get("estimate")
@@ -825,11 +939,20 @@ def search_foods(q):
         "foods": [{k: v for k, v in it.items() if not k.startswith("_")} for it in ranked[:20]],
         "sources": sources,
         "errors": errors,
-        "partial": bool(errors),
+        # Optional sources (OFF, portion lookups) are reported in errors but do not make the
+        # answer "partial"; FDC/estimate failures do.
+        "partial": any(k not in OPTIONAL_SOURCES for k in errors),
         "cached": False,
     }
-    # Full answers cache 24h; partial/empty ones only briefly so a transient 429/timeout heals.
-    cache_put(key, result, CACHE_TTL if (not errors and ranked) else CACHE_TTL_PARTIAL)
+    # Full answers cache 24h; partial/empty ones only briefly so they heal. If portion lookups
+    # failed they keep running in the background and fill _portion_cache, so re-ask soon.
+    if "fdc_portions" in errors:
+        ttl = CACHE_TTL_PORTIONS
+    elif result["partial"] or not ranked:
+        ttl = CACHE_TTL_PARTIAL
+    else:
+        ttl = CACHE_TTL
+    cache_put(key, result, ttl)
     return result
 
 
@@ -911,9 +1034,9 @@ class Handler(BaseHTTPRequestHandler):
                                      "error": "search_failed", "message": "Search failed."})
                 return
             if result["errors"]:
-                sys.stderr.write("search_food %r partial: %s\n" % (q[:40], result["errors"]))
+                sys.stderr.write("search_food %r errors (partial=%s): %s\n" % (q[:40], result["partial"], result["errors"]))
             # Complete answers are cacheable by the browser/CDN; partial ones are not.
-            cc = "no-store" if result["partial"] or not result["foods"] else "public, max-age=3600"
+            cc = "no-store" if result["partial"] or not result["foods"] or "fdc_portions" in result["errors"] else "public, max-age=3600"
             self.send_json(200, result, cc)
             return
         self.send_json(404, {"error": "not_found", "message": "Not found"})
