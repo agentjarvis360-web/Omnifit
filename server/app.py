@@ -207,7 +207,16 @@ class SourceError(Exception):
 
 def fdc_api_key():
     # USDA FoodData Central: use real key if set, else DEMO_KEY (rate-limited: ~30 req/h per IP).
-    return (os.environ.get("FDC_API_KEY") or "DEMO_KEY").strip()
+    # Exact FDC_API_KEY first; then any casing of the name (e.g. "fdc_api_key" set in the Render dashboard).
+    val = (os.environ.get("FDC_API_KEY") or "").strip()
+    if val:
+        return val
+    for key, val in sorted(os.environ.items()):
+        if key.upper() == "FDC_API_KEY":
+            val = (val or "").strip()
+            if val:
+                return val
+    return "DEMO_KEY"
 
 
 def http_get_json(url, headers=None, timeout=SEARCH_TIMEOUT, body=None):
